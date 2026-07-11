@@ -1,5 +1,5 @@
 {
-  "name": "@be-commerce/nest-permission",
+  "name": "nest-permission",
   "version": "0.1.0",
   "description": "Permission-based authorization for NestJS.",
   "license": "MIT",

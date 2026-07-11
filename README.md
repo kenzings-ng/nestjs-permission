@@ -19,15 +19,15 @@ Prisma and TypeORM will cover their supported SQL database drivers through one a
 ## Install
 
 ```bash
-npm install nestjs-permission
+npm install @kenzings/nest-permission
 ```
 
 Initialize an integration after installation. The CLI detects Mongoose, Prisma, and TypeORM from the application's `package.json`; it prompts when detection is ambiguous.
 
 ```bash
-npx nest-permission init
-npx nest-permission init --database mongoose
-npx nest-permission init --database mongoose --dry-run
+npx @kenzings/nest-permission init
+npx @kenzings/nest-permission init --database mongoose
+npx @kenzings/nest-permission init --database mongoose --dry-run
 ```
 
 The CLI refuses to overwrite generated files. Mongoose generates an importable module; Prisma and TypeORM generate a `PermissionRepository` skeleton that must be implemented before use.

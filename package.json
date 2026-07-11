@@ -1,5 +1,5 @@
 {
-  "name": "@kenzings/nest-permission",
+  "name": "@kenzings/nestjs-permission",
   "version": "0.1.1",
   "description": "Permission-based authorization for NestJS.",
   "license": "MIT",

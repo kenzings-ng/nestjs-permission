@@ -1,0 +1,55 @@
+{
+  "name": "@be-commerce/nest-permission",
+  "version": "0.1.0",
+  "description": "Permission-based authorization for NestJS.",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "nest-permission": "bin/nest-permission.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js"
+    },
+    "./mongoose": {
+      "types": "./dist/mongoose/index.d.ts",
+      "require": "./dist/mongoose/index.js"
+    }
+  },
+  "files": ["dist", "bin", "README.md", "CHANGELOG.md", "CONTRIBUTING.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^10.0.0 || ^11.0.0",
+    "@nestjs/core": "^10.0.0 || ^11.0.0",
+    "@nestjs/mongoose": "^10.0.0 || ^11.0.0",
+    "mongoose": "^8.0.0 || ^9.0.0",
+    "reflect-metadata": "^0.1.13 || ^0.2.0",
+    "rxjs": "^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@nestjs/mongoose": { "optional": true },
+    "mongoose": { "optional": true }
+  },
+  "devDependencies": {
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/mongoose": "^11.0.1",
+    "@nestjs/testing": "^11.0.1",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.0.0",
+    "mongoose": "^9.7.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.3"
+  },
+  "publishConfig": { "access": "public" }
+}

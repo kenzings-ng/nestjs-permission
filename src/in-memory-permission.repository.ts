@@ -1,0 +1,78 @@
+import { Injectable } from '@nestjs/common';
+import { Permission, PermissionRepository, PermissionSubjectId } from './types';
+
+@Injectable()
+export class InMemoryPermissionRepository implements PermissionRepository {
+  private readonly permissions = new Set<string>();
+  private readonly roles = new Set<string>();
+  private readonly rolePermissions = new Map<string, Permission[]>();
+  private readonly userRoles = new Map<string, string[]>();
+  private readonly userPermissions = new Map<string, Permission[]>();
+
+  async createPermission(name: Permission, guardName: string): Promise<void> {
+    this.permissions.add(this.key(guardName, name));
+  }
+
+  async deletePermission(name: Permission, guardName: string): Promise<void> {
+    this.permissions.delete(this.key(guardName, name));
+    for (const [role, permissions] of this.rolePermissions) {
+      this.rolePermissions.set(role, permissions.filter((permission) => permission !== name));
+    }
+    for (const [user, permissions] of this.userPermissions) {
+      this.userPermissions.set(user, permissions.filter((permission) => permission !== name));
+    }
+  }
+
+  async createRole(name: string, guardName: string): Promise<void> {
+    this.roles.add(this.key(guardName, name));
+  }
+
+  async deleteRole(name: string, guardName: string): Promise<void> {
+    const key = this.key(guardName, name);
+    this.roles.delete(key);
+    this.rolePermissions.delete(key);
+    for (const [user, roles] of this.userRoles) {
+      this.userRoles.set(user, roles.filter((role) => role !== name));
+    }
+  }
+
+  async permissionExists(name: Permission, guardName: string): Promise<boolean> {
+    return this.permissions.has(this.key(guardName, name));
+  }
+
+  async roleExists(name: string, guardName: string): Promise<boolean> {
+    return this.roles.has(this.key(guardName, name));
+  }
+
+  async setRolePermissions(role: string, permissions: Permission[], guardName: string): Promise<void> {
+    this.rolePermissions.set(this.key(guardName, role), [...new Set(permissions)]);
+  }
+
+  async getRolePermissions(role: string, guardName: string): Promise<Permission[]> {
+    return this.rolePermissions.get(this.key(guardName, role)) ?? [];
+  }
+
+  async setUserRoles(userId: PermissionSubjectId, roles: string[], guardName: string): Promise<void> {
+    this.userRoles.set(this.userKey(guardName, userId), [...new Set(roles)]);
+  }
+
+  async getUserRoles(userId: PermissionSubjectId, guardName: string): Promise<string[]> {
+    return this.userRoles.get(this.userKey(guardName, userId)) ?? [];
+  }
+
+  async setUserPermissions(userId: PermissionSubjectId, permissions: Permission[], guardName: string): Promise<void> {
+    this.userPermissions.set(this.userKey(guardName, userId), [...new Set(permissions)]);
+  }
+
+  async getUserPermissions(userId: PermissionSubjectId, guardName: string): Promise<Permission[]> {
+    return this.userPermissions.get(this.userKey(guardName, userId)) ?? [];
+  }
+
+  private key(guardName: string, name: string): string {
+    return `${guardName}:${name}`;
+  }
+
+  private userKey(guardName: string, userId: PermissionSubjectId): string {
+    return this.key(guardName, String(userId));
+  }
+}

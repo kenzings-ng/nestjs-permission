@@ -1,0 +1,4 @@
+export const REQUIRED_PERMISSIONS_KEY = 'nest-permission:required-permissions';
+export const PERMISSION_OPTIONS = Symbol('NEST_PERMISSION_OPTIONS');
+export const PERMISSION_EVALUATOR = Symbol('NEST_PERMISSION_EVALUATOR');
+export const PERMISSION_REPOSITORY = Symbol('NEST_PERMISSION_REPOSITORY');

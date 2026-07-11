@@ -1,4 +1,4 @@
-# @be-commerce/nest-permission
+# nestjs-permission
 
 Permission-based authorization for NestJS, inspired by `spatie/laravel-permission`. It provides roles, direct permissions, wildcard matching, NestJS decorators/guards, and an ORM-independent persistence contract.
 
@@ -19,7 +19,7 @@ Prisma and TypeORM will cover their supported SQL database drivers through one a
 ## Install
 
 ```bash
-npm install @be-commerce/nest-permission
+npm install nestjs-permission
 ```
 
 Initialize an integration after installation. The CLI detects Mongoose, Prisma, and TypeORM from the application's `package.json`; it prompts when detection is ambiguous.
@@ -38,7 +38,7 @@ Register the module and apply the guard globally after authentication:
 
 ```ts
 import { APP_GUARD } from '@nestjs/core';
-import { NestPermissionModule, PermissionsGuard } from '@be-commerce/nest-permission';
+import { NestPermissionModule, PermissionsGuard } from 'nestjs-permission';
 
 @Module({
   imports: [NestPermissionModule.forRoot()],
@@ -86,7 +86,7 @@ Available lifecycle methods include `removeRole`, `revokePermissionTo`, `revokeP
 The Mongoose adapter uses five indexed collections: permissions, roles, role-permissions, user-roles, and user-permissions. Schemas include optional `description`, `metadata`, and `tenantId` fields. `tenantId` is not applied by the core service automatically; extend the repository if authorization must be tenant-scoped.
 
 ```ts
-import { MongoosePermissionModule } from '@be-commerce/nest-permission/mongoose';
+import { MongoosePermissionModule } from 'nestjs-permission/mongoose';
 
 @Module({
   imports: [MongoosePermissionModule.forRoot()],

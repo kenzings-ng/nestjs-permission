@@ -39,4 +39,10 @@ export interface PermissionRepository {
   getUserRoles(userId: PermissionSubjectId, guardName: string): Promise<string[]>;
   setUserPermissions(userId: PermissionSubjectId, permissions: Permission[], guardName: string): Promise<void>;
   getUserPermissions(userId: PermissionSubjectId, guardName: string): Promise<Permission[]>;
+  addRolePermissions?(role: string, permissions: Permission[], guardName: string): Promise<void>;
+  removeRolePermissions?(role: string, permission: Permission, guardName: string): Promise<void>;
+  addUserRoles?(userId: PermissionSubjectId, roles: string[], guardName: string): Promise<void>;
+  removeUserRoles?(userId: PermissionSubjectId, role: string, guardName: string): Promise<void>;
+  addUserPermissions?(userId: PermissionSubjectId, permissions: Permission[], guardName: string): Promise<void>;
+  removeUserPermissions?(userId: PermissionSubjectId, permission: Permission, guardName: string): Promise<void>;
 }

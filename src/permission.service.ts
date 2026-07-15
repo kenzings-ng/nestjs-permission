@@ -33,6 +33,10 @@ export class PermissionService {
   async givePermissionToRole(role: string, ...permissions: Permission[]): Promise<void> {
     await this.assertRole(role);
     await this.assertPermissions(permissions);
+    if (this.repository.addRolePermissions) {
+      await this.repository.addRolePermissions(role, permissions, this.guardName);
+      return;
+    }
     const current = await this.repository.getRolePermissions(role, this.guardName);
     await this.repository.setRolePermissions(role, this.unique([...current, ...permissions]), this.guardName);
   }
@@ -45,6 +49,10 @@ export class PermissionService {
 
   async revokePermissionFromRole(role: string, permission: Permission): Promise<void> {
     await this.assertRole(role);
+    if (this.repository.removeRolePermissions) {
+      await this.repository.removeRolePermissions(role, permission, this.guardName);
+      return;
+    }
     const current = await this.repository.getRolePermissions(role, this.guardName);
     await this.repository.setRolePermissions(role, current.filter((item) => item !== permission), this.guardName);
   }
@@ -55,6 +63,10 @@ export class PermissionService {
 
   async assignRole(userId: PermissionSubjectId, ...roles: string[]): Promise<void> {
     await this.assertRoles(roles);
+    if (this.repository.addUserRoles) {
+      await this.repository.addUserRoles(userId, roles, this.guardName);
+      return;
+    }
     const current = await this.repository.getUserRoles(userId, this.guardName);
     await this.repository.setUserRoles(userId, this.unique([...current, ...roles]), this.guardName);
   }
@@ -65,6 +77,10 @@ export class PermissionService {
   }
 
   async removeRole(userId: PermissionSubjectId, role: string): Promise<void> {
+    if (this.repository.removeUserRoles) {
+      await this.repository.removeUserRoles(userId, role, this.guardName);
+      return;
+    }
     const current = await this.repository.getUserRoles(userId, this.guardName);
     await this.repository.setUserRoles(userId, current.filter((item) => item !== role), this.guardName);
   }
@@ -75,6 +91,10 @@ export class PermissionService {
 
   async givePermissionTo(userId: PermissionSubjectId, ...permissions: Permission[]): Promise<void> {
     await this.assertPermissions(permissions);
+    if (this.repository.addUserPermissions) {
+      await this.repository.addUserPermissions(userId, permissions, this.guardName);
+      return;
+    }
     const current = await this.repository.getUserPermissions(userId, this.guardName);
     await this.repository.setUserPermissions(userId, this.unique([...current, ...permissions]), this.guardName);
   }
@@ -85,6 +105,10 @@ export class PermissionService {
   }
 
   async revokePermissionTo(userId: PermissionSubjectId, permission: Permission): Promise<void> {
+    if (this.repository.removeUserPermissions) {
+      await this.repository.removeUserPermissions(userId, permission, this.guardName);
+      return;
+    }
     const current = await this.repository.getUserPermissions(userId, this.guardName);
     await this.repository.setUserPermissions(userId, current.filter((item) => item !== permission), this.guardName);
   }

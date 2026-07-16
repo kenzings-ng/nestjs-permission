@@ -61,10 +61,12 @@ export interface UserRoleDocument {
   subjectId: string;
   roleId: Types.ObjectId;
   guardName: string;
+  tenantId?: string;
 }
 
 export interface UserPermissionDocument {
   subjectId: string;
   permissionId: Types.ObjectId;
   guardName: string;
+  tenantId?: string;
 }

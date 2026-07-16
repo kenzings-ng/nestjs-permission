@@ -16,10 +16,14 @@ export class InMemoryPermissionRepository implements PermissionRepository {
   async deletePermission(name: Permission, guardName: string): Promise<void> {
     this.permissions.delete(this.key(guardName, name));
     for (const [role, permissions] of this.rolePermissions) {
-      this.rolePermissions.set(role, permissions.filter((permission) => permission !== name));
+      if (role.startsWith(`${guardName}:`)) {
+        this.rolePermissions.set(role, permissions.filter((permission) => permission !== name));
+      }
     }
     for (const [user, permissions] of this.userPermissions) {
-      this.userPermissions.set(user, permissions.filter((permission) => permission !== name));
+      if (user.startsWith(`${guardName}:`)) {
+        this.userPermissions.set(user, permissions.filter((permission) => permission !== name));
+      }
     }
   }
 
@@ -32,7 +36,9 @@ export class InMemoryPermissionRepository implements PermissionRepository {
     this.roles.delete(key);
     this.rolePermissions.delete(key);
     for (const [user, roles] of this.userRoles) {
-      this.userRoles.set(user, roles.filter((role) => role !== name));
+      if (user.startsWith(`${guardName}:`)) {
+        this.userRoles.set(user, roles.filter((role) => role !== name));
+      }
     }
   }
 
@@ -52,27 +58,27 @@ export class InMemoryPermissionRepository implements PermissionRepository {
     return this.rolePermissions.get(this.key(guardName, role)) ?? [];
   }
 
-  async setUserRoles(userId: PermissionSubjectId, roles: string[], guardName: string): Promise<void> {
-    this.userRoles.set(this.userKey(guardName, userId), [...new Set(roles)]);
+  async setUserRoles(userId: PermissionSubjectId, roles: string[], guardName: string, tenantId?: string): Promise<void> {
+    this.userRoles.set(this.userKey(guardName, userId, tenantId), [...new Set(roles)]);
   }
 
-  async getUserRoles(userId: PermissionSubjectId, guardName: string): Promise<string[]> {
-    return this.userRoles.get(this.userKey(guardName, userId)) ?? [];
+  async getUserRoles(userId: PermissionSubjectId, guardName: string, tenantId?: string): Promise<string[]> {
+    return this.userRoles.get(this.userKey(guardName, userId, tenantId)) ?? [];
   }
 
-  async setUserPermissions(userId: PermissionSubjectId, permissions: Permission[], guardName: string): Promise<void> {
-    this.userPermissions.set(this.userKey(guardName, userId), [...new Set(permissions)]);
+  async setUserPermissions(userId: PermissionSubjectId, permissions: Permission[], guardName: string, tenantId?: string): Promise<void> {
+    this.userPermissions.set(this.userKey(guardName, userId, tenantId), [...new Set(permissions)]);
   }
 
-  async getUserPermissions(userId: PermissionSubjectId, guardName: string): Promise<Permission[]> {
-    return this.userPermissions.get(this.userKey(guardName, userId)) ?? [];
+  async getUserPermissions(userId: PermissionSubjectId, guardName: string, tenantId?: string): Promise<Permission[]> {
+    return this.userPermissions.get(this.userKey(guardName, userId, tenantId)) ?? [];
   }
 
   private key(guardName: string, name: string): string {
     return `${guardName}:${name}`;
   }
 
-  private userKey(guardName: string, userId: PermissionSubjectId): string {
-    return this.key(guardName, String(userId));
+  private userKey(guardName: string, userId: PermissionSubjectId, tenantId?: string): string {
+    return `${guardName}:${tenantId ?? ''}:${String(userId)}`;
   }
 }

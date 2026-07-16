@@ -13,9 +13,10 @@ export class RepositoryPermissionEvaluator implements PermissionEvaluator {
 
   async hasPermissions(user: PermissionUser | undefined, required: RequiredPermissions): Promise<boolean> {
     if (!user) return false;
+    const service = user.tenantId === undefined ? this.permissions : this.permissions.forTenant(user.tenantId);
     const granted = user.id === undefined
       ? new Set(user.permissions ?? [])
-      : new Set(await this.permissions.getAllPermissions(user.id));
+      : new Set(await service.getAllPermissions(user.id));
     const has = (permission: string) =>
       [...granted].some((value) => matchesPermission(value, permission, this.options.wildcardPermissions !== false));
     return required.mode === 'all'

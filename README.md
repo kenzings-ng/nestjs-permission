@@ -1,57 +1,44 @@
-# nestjs-permission
+# @kenzings/nestjs-permission
 
-Permission-based authorization for NestJS, inspired by `spatie/laravel-permission`. It provides roles, direct permissions, wildcard matching, NestJS decorators/guards, and a database-agnostic persistence contract.
+**Permission-based authorization for NestJS with roles, direct permissions, wildcards, guards, decorators, and database-agnostic persistence.**
 
-> **Status: 0.x beta.** The public API may change before 1.0.
+Inspired by [`spatie/laravel-permission`](https://spatie.be/docs/laravel-permission), this package brings a similar permission model to NestJS while keeping storage and authorization logic replaceable.
 
-## Philosophy: bring your own database
+> **Status: 0.x beta** — the public API may change before 1.0.
 
-This package does **not** ship an adapter for every database. Instead, all storage goes through one small interface — `PermissionRepository` — and you implement it for whatever you use: MySQL, MariaDB, PostgreSQL, SQLite, MongoDB, DynamoDB, Redis, an external IAM service, anything. The core (decorators, guard, wildcard matching, `PermissionService`) never talks to a database directly.
+## Why @kenzings/nestjs-permission?
 
-Two adapters are included:
+NestJS provides the building blocks for authorization, but applications often need a simple way to express fine-grained permissions such as:
 
-| Adapter                    | Purpose                                                                                        |
-| -------------------------- | ---------------------------------------------------------------------------------------------- |
-| In-memory                  | Tests, prototypes, demos. Data is lost on restart — never use in production.                    |
-| Mongoose (MongoDB)         | A production-oriented reference adapter. Also useful as a template for writing your own.        |
-
-Everything else is your own `PermissionRepository` implementation. The [Implementing your own adapter](#implementing-your-own-adapter) section covers the generic data model for both SQL and NoSQL databases.
-
-## How it works
-
-```
-@RequirePermissions("products.create")     ← decorator on a route
-        │
-PermissionsGuard                           ← reads request.user
-        │
-PermissionEvaluator                        ← decides allow/deny (replaceable)
-        │
-PermissionService                          ← roles, permissions, wildcard logic
-        │
-PermissionRepository                       ← the only thing that touches storage (yours)
+```ts
+@RequirePermissions("products.create")
 ```
 
-You pick the entry point that matches how much you want to customize:
+This package focuses on keeping that authorization layer small and decoupled:
 
-| Goal                                     | Entry point                                                          |
-| ---------------------------------------- | -------------------------------------------------------------------- |
-| Quick demo or unit tests (no database)   | `NestPermissionModule.forRoot()` (in-memory)                          |
-| MongoDB with the built-in adapter        | `MongoosePermissionModule.forRoot()`                                  |
-| Any other database (SQL or NoSQL)        | `NestPermissionModule.forRootWithRepository(MyPermissionRepository)`  |
-| Custom allow/deny logic                  | `NestPermissionModule.forRootWithEvaluator(MyEvaluator)`              |
-| Both custom storage and custom logic     | `NestPermissionModule.forRootWithRepositoryAndEvaluator(...)`         |
+* **Permission-based authorization** with NestJS guards and decorators
+* **Roles and direct user permissions**
+* **Wildcard permissions** such as `products.*` and `*`
+* **Database-agnostic persistence** through `PermissionRepository`
+* **Built-in in-memory adapter** for tests and prototypes
+* **Built-in Mongoose adapter** for MongoDB
+* **Custom evaluators** when database-backed permission checks are not what you need
+* **Multi-tenancy** for user-specific role and permission assignments
+* **Guard namespaces** for separate permission sets such as `admin` and `api`
+* **TypeScript-first API**
+* No dependency on a specific database or ORM in the core package
 
-## Installation
+---
+
+## 30-second example
+
+Install the package:
 
 ```bash
 npm install @kenzings/nestjs-permission
-# only if you use the built-in Mongoose adapter:
-npm install @nestjs/mongoose mongoose
 ```
 
-## Quick start (in-memory, no database)
-
-The fastest way to try the package or write tests:
+Register the permission module and guard:
 
 ```ts
 import { Module } from "@nestjs/common";
@@ -63,34 +50,14 @@ import {
 
 @Module({
   imports: [NestPermissionModule.forRoot()],
-  providers: [{ provide: APP_GUARD, useClass: PermissionsGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: PermissionsGuard },
+  ],
 })
 export class AppModule {}
 ```
 
-For a real application, swap the in-memory storage for a persistent repository — see the next two sections. Everything else (decorators, guard, `PermissionService`) stays the same.
-
-## Wiring up authentication
-
-`PermissionsGuard` reads the authenticated user from `request.user` and resolves their permissions by `request.user.id`. Two rules:
-
-1. **Your authentication guard must run first** and populate `request.user` with an `id` (string or number) — the same ID you pass to `PermissionService` methods.
-2. **Routes without a permission decorator are allowed through** (fail-open, standard NestJS opt-in style). Decorate every sensitive route.
-
-```ts
-providers: [
-  { provide: APP_GUARD, useClass: YourAuthGuard },      // runs first, sets request.user
-  { provide: APP_GUARD, useClass: PermissionsGuard },   // then checks permissions
-],
-```
-
-If your app stores the user on another request property, set `userProperty`:
-
-```ts
-NestPermissionModule.forRoot({ userProperty: "currentUser" });
-```
-
-## Protecting routes
+Protect a route:
 
 ```ts
 import { Controller, Get, Post } from "@nestjs/common";
@@ -102,24 +69,246 @@ import {
 @Controller("products")
 export class ProductsController {
   @Post()
-  @RequirePermissions("products.create", "products.publish") // must have ALL
+  @RequirePermissions("products.create", "products.publish")
   create() {
     return { ok: true };
   }
 
   @Get()
-  @RequireAnyPermission("products.read", "products.manage") // must have AT LEAST ONE
+  @RequireAnyPermission("products.read", "products.manage")
   findAll() {
     return [];
   }
 }
 ```
 
-Both decorators honor [wildcard permissions](#wildcard-permissions).
+`@RequirePermissions()` requires **all** listed permissions.
 
-## Basic usage
+`@RequireAnyPermission()` requires **at least one**.
 
-Inject `PermissionService` anywhere in your app to define and assign permissions. Permissions and roles must be created before they can be assigned — assigning an unknown name throws a `NotFoundException`.
+Both support wildcard permissions.
+
+---
+
+## How it works
+
+```text
+@RequirePermissions("products.create")
+              │
+              ▼
+      PermissionsGuard
+              │
+              │ reads request.user
+              ▼
+    PermissionEvaluator
+              │
+              │ allow / deny
+              ▼
+      PermissionService
+              │
+              │ roles, permissions,
+              │ wildcards, tenancy
+              ▼
+    PermissionRepository
+              │
+              ▼
+       Your storage
+```
+
+The core package does **not** talk directly to a database.
+
+All persistence goes through the `PermissionRepository` contract, so you can use:
+
+* MySQL
+* MariaDB
+* PostgreSQL
+* SQLite
+* MongoDB
+* DynamoDB
+* Redis
+* an external IAM service
+* or any other storage system
+
+without changing your controllers, decorators, guards, or permission service.
+
+---
+
+## Choose your integration
+
+| Goal                                  | Entry point                                                   |
+| ------------------------------------- | ------------------------------------------------------------- |
+| Quick demo, tests, or prototype       | `NestPermissionModule.forRoot()`                              |
+| MongoDB                               | `MongoosePermissionModule.forRoot()`                          |
+| Custom SQL/NoSQL database             | `NestPermissionModule.forRootWithRepository(...)`             |
+| Custom authorization logic            | `NestPermissionModule.forRootWithEvaluator(...)`              |
+| Custom database + authorization logic | `NestPermissionModule.forRootWithRepositoryAndEvaluator(...)` |
+
+The built-in in-memory adapter is intended for tests, prototypes, and demos.
+
+**Do not use in-memory storage for production data.**
+
+---
+
+# Installation
+
+## Core package
+
+```bash
+npm install @kenzings/nestjs-permission
+```
+
+## Mongoose / MongoDB
+
+If you use the built-in MongoDB adapter:
+
+```bash
+npm install @kenzings/nestjs-permission @nestjs/mongoose mongoose
+```
+
+---
+
+# Quick start
+
+## 1. Configure the module
+
+The simplest setup uses the built-in in-memory repository:
+
+```ts
+import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
+import {
+  NestPermissionModule,
+  PermissionsGuard,
+} from "@kenzings/nestjs-permission";
+
+@Module({
+  imports: [
+    NestPermissionModule.forRoot(),
+  ],
+  providers: [
+    { provide: APP_GUARD, useClass: PermissionsGuard },
+  ],
+})
+export class AppModule {}
+```
+
+This setup is useful for:
+
+* local development
+* examples
+* unit tests
+* prototypes
+
+For production, use a persistent repository such as the built-in Mongoose adapter or your own `PermissionRepository`.
+
+---
+
+# Authentication and `request.user`
+
+`PermissionsGuard` reads the authenticated user from `request.user`.
+
+Your authentication guard must therefore:
+
+1. run before `PermissionsGuard`
+2. authenticate the request
+3. populate `request.user`
+4. provide an `id` on that user
+
+For example:
+
+```ts
+request.user = {
+  id: "user-1",
+};
+```
+
+Then configure your global guards in the appropriate order:
+
+```ts
+providers: [
+  { provide: APP_GUARD, useClass: YourAuthGuard },
+  { provide: APP_GUARD, useClass: PermissionsGuard },
+],
+```
+
+The authentication guard establishes the identity first. The permission guard then evaluates authorization.
+
+### Custom user property
+
+If your application stores the authenticated user somewhere other than `request.user`:
+
+```ts
+NestPermissionModule.forRoot({
+  userProperty: "currentUser",
+});
+```
+
+---
+
+## Routes without permission metadata
+
+Routes without a permission decorator are allowed through.
+
+This is intentional and follows the opt-in authorization style commonly used with NestJS guards.
+
+```ts
+@Get()
+findAll() {
+  // allowed if no permission metadata is defined
+}
+```
+
+**Important:** sensitive routes must be explicitly decorated.
+
+For example:
+
+```ts
+@Post()
+@RequirePermissions("products.create")
+create() {
+  // ...
+}
+```
+
+---
+
+# Protecting routes
+
+## Require all permissions
+
+```ts
+@Post()
+@RequirePermissions(
+  "products.create",
+  "products.publish",
+)
+create() {
+  return { ok: true };
+}
+```
+
+The user must have **every** required permission.
+
+## Require any permission
+
+```ts
+@Get()
+@RequireAnyPermission(
+  "products.read",
+  "products.manage",
+)
+findAll() {
+  return [];
+}
+```
+
+The user must have **at least one** of the required permissions.
+
+---
+
+# Managing permissions
+
+Inject `PermissionService` wherever you need to create, assign, revoke, synchronize, or check permissions.
 
 ```ts
 import { Injectable } from "@nestjs/common";
@@ -127,211 +316,635 @@ import { PermissionService } from "@kenzings/nestjs-permission";
 
 @Injectable()
 export class UserSetupService {
-  constructor(private readonly permissions: PermissionService) {}
+  constructor(
+    private readonly permissions: PermissionService,
+  ) {}
 }
 ```
 
-### Direct permissions
+Permissions and roles must exist before they can be assigned.
 
-Grant a permission straight to a user:
+Assigning an unknown permission or role throws a `NotFoundException`.
+
+---
+
+# Direct permissions
+
+Grant a permission directly to a user:
 
 ```ts
 await this.permissions.createPermission("products.delete");
-await this.permissions.givePermissionTo("user-1", "products.delete");
 
-await this.permissions.hasPermissionTo("user-1", "products.delete"); // true
-await this.permissions.revokePermissionTo("user-1", "products.delete");
+await this.permissions.givePermissionTo(
+  "user-1",
+  "products.delete",
+);
+
+await this.permissions.hasPermissionTo(
+  "user-1",
+  "products.delete",
+);
+// true
+
+await this.permissions.revokePermissionTo(
+  "user-1",
+  "products.delete",
+);
 ```
 
-### Using permissions via roles
+Direct permissions are useful for individual exceptions.
 
-The recommended day-to-day model (see [Roles vs permissions](#best-practices-roles-vs-permissions)): group permissions into roles, assign roles to users. A user's effective permissions are their direct permissions plus everything inherited from their roles — `hasPermissionTo` and the guard treat both the same.
+For most applications, roles are a better way to manage normal access patterns.
+
+---
+
+# Roles
+
+Create a role and assign permissions to it:
 
 ```ts
 await this.permissions.createPermission("products.create");
 await this.permissions.createRole("merchant");
 
-await this.permissions.givePermissionToRole("merchant", "products.create");
-await this.permissions.assignRole("user-1", "merchant");
+await this.permissions.givePermissionToRole(
+  "merchant",
+  "products.create",
+);
 
-await this.permissions.hasPermissionTo("user-1", "products.create"); // true, via the role
+await this.permissions.assignRole(
+  "user-1",
+  "merchant",
+);
 ```
 
-### Syncing
+The user's effective permissions include:
 
-`sync*` methods replace the full assignment set in one call, while `give`/`assign`/`revoke`/`remove` change one entry at a time:
+```text
+direct user permissions
+        +
+permissions inherited from roles
+```
+
+Therefore:
 
 ```ts
-await this.permissions.syncRoles("user-1", ["merchant"]);            // user now has exactly these roles
-await this.permissions.syncPermissions("merchant", ["products.create"]); // role now has exactly these permissions
-await this.permissions.syncDirectPermissions("user-1", []);          // clears direct permissions
+await this.permissions.hasPermissionTo(
+  "user-1",
+  "products.create",
+);
+// true
 ```
 
-### Checking permissions and roles
+---
 
-For checks outside of guarded routes (services, resolvers, scripts):
+# Syncing assignments
+
+`sync*` methods replace the complete assignment set.
+
+`give`, `assign`, `revoke`, and `remove` change individual assignments.
 
 ```ts
-await this.permissions.hasPermissionTo("user-1", "products.create");
-await this.permissions.hasAnyPermission("user-1", "products.create", "products.delete");
-await this.permissions.hasAllPermissions("user-1", "products.create", "products.delete");
+await this.permissions.syncRoles(
+  "user-1",
+  ["merchant"],
+);
 
-await this.permissions.hasRole("user-1", "merchant");
-await this.permissions.hasAnyRole("user-1", "merchant", "admin");
-await this.permissions.hasAllRoles("user-1", "merchant", "admin");
+await this.permissions.syncPermissions(
+  "merchant",
+  ["products.create"],
+);
+
+await this.permissions.syncDirectPermissions(
+  "user-1",
+  [],
+);
 ```
 
-All permission checks honor wildcards the same way the guard does. Role checks are exact-name matches.
-
-### Method reference
-
-| Category            | Methods                                                                                             |
-| ------------------- | ---------------------------------------------------------------------------------------------------- |
-| Define              | `createPermission`, `deletePermission`, `createRole`, `deleteRole`                                     |
-| Role ↔ permission   | `givePermissionToRole`, `revokePermissionFromRole`, `syncPermissions`, `getRolePermissions`            |
-| User ↔ role         | `assignRole`, `removeRole`, `syncRoles`, `getRoles`                                                    |
-| User ↔ permission   | `givePermissionTo`, `revokePermissionTo`, `syncDirectPermissions`, `getAllPermissions`                 |
-| Checks              | `hasPermissionTo`, `hasAnyPermission`, `hasAllPermissions`, `hasRole`, `hasAnyRole`, `hasAllRoles`     |
-| Tenancy             | `forTenant` (see [Multi-tenancy](#multi-tenancy))                                                      |
-
-## Wildcard permissions
-
-Enabled by default. A granted permission ending in `.*` matches every permission under that prefix, and a bare `*` matches everything:
+For example:
 
 ```ts
-await this.permissions.createPermission("products.*");
-await this.permissions.givePermissionTo("user-1", "products.*");
-
-await this.permissions.hasPermissionTo("user-1", "products.create"); // true
-await this.permissions.hasPermissionTo("user-1", "orders.create");   // false
+syncRoles("user-1", ["merchant"])
 ```
 
-Granting `*` to a user (or a role such as `super-admin`) effectively bypasses every permission check — a simple way to model a super-admin.
+means that the user should have exactly the specified roles after the operation.
 
-Disable wildcard matching entirely with `{ wildcardPermissions: false }`; then only exact names match.
+---
 
-## Using multiple guards
+# Checking permissions and roles
 
-Every role, permission, and assignment is namespaced by a `guardName` (default `'default'`). Data under one guard name is invisible to another — useful when the same application serves separate audiences (e.g. an admin panel and a public API) with independent permission sets.
-
-Set it per module registration:
+Permission checks can be performed outside guarded controllers:
 
 ```ts
-NestPermissionModule.forRoot({ guardName: "admin" });
-// or through the Mongoose module:
-MongoosePermissionModule.forRoot({ permissionOptions: { guardName: "admin" } });
+await this.permissions.hasPermissionTo(
+  "user-1",
+  "products.create",
+);
+
+await this.permissions.hasAnyPermission(
+  "user-1",
+  "products.create",
+  "products.delete",
+);
+
+await this.permissions.hasAllPermissions(
+  "user-1",
+  "products.create",
+  "products.delete",
+);
 ```
 
-One module registration works with one guard name; all `PermissionService` calls and guard checks in that app use it implicitly. Adapters must scope every query by `guardName` — the built-in adapters already do.
-
-## Multi-tenancy
-
-For applications where the same user has different access per tenant (workspace, team, organization), scope a service with `forTenant`:
-
-- **Permission and role definitions are shared** across tenants (created once, per guard name).
-- **User assignments (user↔role, user↔permission) are stored per tenant.** The global (tenant-less) scope and each tenant scope are fully isolated from one another.
+Role checks are also available:
 
 ```ts
-await this.permissions.createRole("editor");                       // defined once, shared
+await this.permissions.hasRole(
+  "user-1",
+  "merchant",
+);
 
-const workspace = this.permissions.forTenant("workspace-42");
-await workspace.assignRole("user-1", "editor");                    // only within workspace-42
+await this.permissions.hasAnyRole(
+  "user-1",
+  "merchant",
+  "admin",
+);
 
-await workspace.hasRole("user-1", "editor");                       // true
-await this.permissions.hasRole("user-1", "editor");                // false — global scope
-await this.permissions.forTenant("workspace-7").hasRole("user-1", "editor"); // false
+await this.permissions.hasAllRoles(
+  "user-1",
+  "merchant",
+  "admin",
+);
 ```
 
-To make route guards tenant-aware, have your authentication guard set `tenantId` on the request user (for example from the subdomain, a header, or the JWT):
+Permission checks honor wildcard matching.
+
+Role checks use exact role names.
+
+---
+
+# API reference
+
+| Category          | Methods                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| Define            | `createPermission`, `deletePermission`, `createRole`, `deleteRole`                          |
+| Role → permission | `givePermissionToRole`, `revokePermissionFromRole`, `syncPermissions`, `getRolePermissions` |
+| User → role       | `assignRole`, `removeRole`, `syncRoles`, `getRoles`                                         |
+| User → permission | `givePermissionTo`, `revokePermissionTo`, `syncDirectPermissions`, `getAllPermissions`      |
+| Permission checks | `hasPermissionTo`, `hasAnyPermission`, `hasAllPermissions`                                  |
+| Role checks       | `hasRole`, `hasAnyRole`, `hasAllRoles`                                                      |
+| Multi-tenancy     | `forTenant`                                                                                 |
+
+---
+
+# Wildcard permissions
+
+Wildcard permissions are enabled by default.
+
+A permission ending in `.*` matches permissions under that prefix.
 
 ```ts
-request.user = { id: payload.sub, tenantId: payload.workspaceId };
+await this.permissions.createPermission(
+  "products.*",
+);
+
+await this.permissions.givePermissionTo(
+  "user-1",
+  "products.*",
+);
+
+await this.permissions.hasPermissionTo(
+  "user-1",
+  "products.create",
+);
+// true
+
+await this.permissions.hasPermissionTo(
+  "user-1",
+  "orders.create",
+);
+// false
 ```
 
-When `request.user.tenantId` is present, `PermissionsGuard` checks the user's assignments within that tenant; when absent, it checks the global scope — existing apps keep working unchanged.
+A bare `*` matches every permission:
 
-If you implement a custom adapter, the user-assignment methods receive the tenant as an optional trailing `tenantId` parameter — see [The contract](#the-contract).
+```ts
+await this.permissions.createPermission("*");
 
-## Best practices: roles vs permissions
+await this.permissions.givePermissionTo(
+  "user-1",
+  "*",
+);
+```
 
-Borrowed from `spatie/laravel-permission`, and it applies unchanged here:
+This effectively gives the user unrestricted permission access.
 
-- **Check permissions in code, not roles.** Decorate routes with `@RequirePermissions("articles.edit")`, not "is this user an editor?". Code stays stable while business rules change.
-- **Assign permissions to roles, and roles to users.** Roles are how humans group access ("editor", "merchant"); permissions are what code actually checks. When the definition of "editor" changes, you update one role instead of every route.
-- **Use direct user permissions sparingly** — for one-off exceptions, not as the primary model.
-- **Name permissions after actions**, e.g. `articles.edit`, `orders.refund`. The dot convention also gives you wildcard grouping (`articles.*`) for free.
+A common use is a `super-admin` role:
 
+```text
+super-admin
+    └── *
+```
 
-## Implementing your own adapter
+### Disable wildcards
 
-This is the intended path for every database the package does not ship an adapter for. Implement `PermissionRepository` and register it:
+If you only want exact permission matching:
+
+```ts
+NestPermissionModule.forRoot({
+  wildcardPermissions: false,
+});
+```
+
+---
+
+# Roles vs permissions
+
+The recommended model is:
+
+```text
+Role
+ │
+ ├── Permission
+ ├── Permission
+ └── Permission
+        │
+        ▼
+      User
+```
+
+### Check permissions in application code
+
+Prefer:
+
+```ts
+@RequirePermissions("articles.edit")
+```
+
+over:
+
+```ts
+@RequireRole("editor")
+```
+
+Permissions describe what the application needs.
+
+Roles describe how humans group those permissions.
+
+This keeps application code stable when role definitions change.
+
+### Assign permissions to roles
+
+For normal access management:
+
+```text
+editor
+ ├── articles.read
+ ├── articles.create
+ └── articles.edit
+```
+
+Then assign the role:
+
+```ts
+await this.permissions.assignRole(
+  "user-1",
+  "editor",
+);
+```
+
+### Use direct permissions sparingly
+
+Direct user permissions are useful for exceptions:
+
+```text
+user-1
+ └── reports.export
+```
+
+but should generally not replace role-based access management.
+
+### Name permissions after actions
+
+Prefer:
+
+```text
+articles.read
+articles.create
+articles.edit
+articles.delete
+
+orders.read
+orders.refund
+orders.cancel
+```
+
+The dot-separated naming convention also works naturally with wildcards:
+
+```text
+articles.*
+orders.*
+```
+
+---
+
+# Multiple guards
+
+Every role, permission, and assignment is namespaced by a `guardName`.
+
+The default is:
+
+```text
+default
+```
+
+This allows separate permission sets for different application areas.
+
+For example:
+
+```text
+admin
+ ├── users.manage
+ └── reports.view
+
+api
+ ├── orders.read
+ └── orders.create
+```
+
+Configure a guard namespace:
+
+```ts
+NestPermissionModule.forRoot({
+  guardName: "admin",
+});
+```
+
+Or with the Mongoose adapter:
+
+```ts
+MongoosePermissionModule.forRoot({
+  permissionOptions: {
+    guardName: "admin",
+  },
+});
+```
+
+Data under one `guardName` is invisible to another.
+
+Custom adapters **must scope every relevant query by `guardName`**.
+
+The built-in adapters already do this.
+
+---
+
+# Multi-tenancy
+
+For applications where users have different permissions depending on their workspace, organization, team, or tenant, use `forTenant()`.
+
+Permission and role definitions are shared.
+
+User assignments are tenant-specific.
+
+```ts
+await this.permissions.createRole("editor");
+
+const workspace =
+  this.permissions.forTenant("workspace-42");
+
+await workspace.assignRole(
+  "user-1",
+  "editor",
+);
+
+await workspace.hasRole(
+  "user-1",
+  "editor",
+);
+// true
+```
+
+The global scope remains separate:
+
+```ts
+await this.permissions.hasRole(
+  "user-1",
+  "editor",
+);
+// false
+```
+
+Another tenant is also isolated:
+
+```ts
+await this.permissions
+  .forTenant("workspace-7")
+  .hasRole("user-1", "editor");
+// false
+```
+
+## Tenant-aware route guards
+
+Your authentication layer can expose the tenant through `request.user`:
+
+```ts
+request.user = {
+  id: payload.sub,
+  tenantId: payload.workspaceId,
+};
+```
+
+When `tenantId` is present, `PermissionsGuard` evaluates the user's assignments within that tenant.
+
+When it is absent, it evaluates the global scope.
+
+Existing non-tenant applications therefore continue to work without changes.
+
+---
+
+# Database-agnostic persistence
+
+The core package intentionally does not depend on a specific database.
+
+All storage goes through:
+
+```ts
+PermissionRepository
+```
+
+Register your own implementation:
 
 ```ts
 @Module({
-  imports: [NestPermissionModule.forRootWithRepository(MyPermissionRepository)],
+  imports: [
+    NestPermissionModule.forRootWithRepository(
+      MyPermissionRepository,
+    ),
+  ],
 })
 export class AppModule {}
 ```
 
-The CLI can generate a typed skeleton to start from (every method throws until you implement it):
+You can implement the repository using:
+
+* PostgreSQL
+* MySQL
+* MariaDB
+* SQLite
+* TypeORM
+* Prisma
+* MongoDB
+* DynamoDB
+* Redis
+* another external service
+
+The authorization layer does not need to know which one you chose.
+
+---
+
+# Creating your own adapter
+
+The CLI can generate a typed repository skeleton:
 
 ```bash
-npx @kenzings/nestjs-permission init --database prisma   # or typeorm
+npx @kenzings/nestjs-permission init --database prisma
 ```
 
-### The data model
+or:
 
-Whatever the database, your adapter persists five concepts:
+```bash
+npx @kenzings/nestjs-permission init --database typeorm
+```
 
-| Concept            | Meaning                                  | Uniqueness to enforce                        |
-| ------------------ | ----------------------------------------- | --------------------------------------------- |
-| `permissions`      | a named permission                        | `(name, guard_name)`                          |
-| `roles`            | a named role                              | `(name, guard_name)`                          |
-| `role_permissions` | permission granted to a role              | `(role_id, permission_id, guard_name)`        |
-| `user_roles`       | role assigned to a user                   | `(subject_id, role_id, guard_name)`           |
-| `user_permissions` | permission granted directly to a user     | `(subject_id, permission_id, guard_name)`     |
+The generated skeleton contains methods that throw until implemented.
 
-- Every read and write is scoped by `guardName` (a namespace, default `'default'`). Never let one guard's data leak into another.
-- Store `subjectId` as a stable string form of your application's user ID.
-- **SQL databases**: the table above maps directly to five tables with the listed unique constraints. Model the three link tables as join tables with foreign keys; deleting a role/permission must also delete its rows in the link tables.
-- **NoSQL databases**: use whatever shape is natural (separate collections like the Mongoose adapter, or embedded arrays per user/role) as long as reads return the same results and uniqueness is enforced. The built-in Mongoose adapter (`src/mongoose/`) is a working example of the separate-collections approach.
+## Data model
 
-### The contract
+The adapter needs to persist five concepts:
 
-Required methods — the core works with only these:
+| Concept            | Meaning                                | Uniqueness                                |
+| ------------------ | -------------------------------------- | ----------------------------------------- |
+| `permissions`      | Named permissions                      | `(name, guard_name)`                      |
+| `roles`            | Named roles                            | `(name, guard_name)`                      |
+| `role_permissions` | Permissions assigned to roles          | `(role_id, permission_id, guard_name)`    |
+| `user_roles`       | Roles assigned to users                | `(subject_id, role_id, guard_name)`       |
+| `user_permissions` | Permissions assigned directly to users | `(subject_id, permission_id, guard_name)` |
+
+Every read and write must be scoped by `guardName`.
+
+Never allow data belonging to one guard namespace to leak into another.
+
+Store `subjectId` as a stable string representation of your application's user ID.
+
+## SQL databases
+
+The model maps naturally to five tables.
+
+Use:
+
+* foreign keys for relationships
+* unique constraints for assignments
+* appropriate indexes for lookup queries
+* cascading cleanup where appropriate
+
+Deleting a role or permission must also clean up its related assignment rows.
+
+## NoSQL databases
+
+The physical representation is up to the adapter.
+
+For example, you can use:
+
+* separate collections
+* embedded arrays
+* another document-oriented model
+
+The adapter only needs to expose the expected repository behavior and enforce the required uniqueness/isolation rules.
+
+The built-in Mongoose adapter provides a reference implementation.
+
+---
+
+# PermissionRepository contract
+
+The core repository methods are:
 
 ```ts
-createPermission / deletePermission / permissionExists
-createRole / deleteRole / roleExists
-setRolePermissions / getRolePermissions
-setUserRoles / getUserRoles
-setUserPermissions / getUserPermissions
+createPermission
+deletePermission
+permissionExists
+
+createRole
+deleteRole
+roleExists
+
+setRolePermissions
+getRolePermissions
+
+setUserRoles
+getUserRoles
+
+setUserPermissions
+getUserPermissions
 ```
 
-Optional methods — implement these as atomic single-row inserts/deletes for safe concurrent updates. When present, `PermissionService` uses them instead of read-modify-write on the `set*` methods:
+Optional methods can provide safer atomic single-row operations:
 
 ```ts
-addRolePermissions / removeRolePermissions
-addUserRoles / removeUserRoles
-addUserPermissions / removeUserPermissions
+addRolePermissions
+removeRolePermissions
+
+addUserRoles
+removeUserRoles
+
+addUserPermissions
+removeUserPermissions
 ```
 
-Guidelines:
+When these methods are implemented, `PermissionService` uses them instead of relying on read-modify-write behavior for the corresponding operations.
 
-- Wrap each replace-style `set*` method in a transaction (or an equivalent atomic operation) so a failure cannot leave partial assignments.
-- `delete*` must clean up related link rows, scoped to the same `guardName` (across all tenants — the definition itself is gone).
-- The user-assignment methods (`setUserRoles`, `getUserRoles`, `setUserPermissions`, `getUserPermissions`, and their `add*`/`remove*` variants) receive an optional trailing `tenantId?: string`. When set, read and write only that tenant's rows; when `undefined`, only tenant-less rows. Add a nullable `tenant_id` column to `user_roles`/`user_permissions` and include it in their unique keys if you use [multi-tenancy](#multi-tenancy); ignore the parameter if you don't.
-- Caching and locking are the adapter's responsibility — the core service does not add them.
-- Before production, add integration tests against the exact database version you deploy: assignment, revocation, deletion cleanup, guard-name isolation, and concurrent writes.
+## Adapter requirements
 
-## Built-in Mongoose adapter (MongoDB)
+For production adapters:
 
-If you already use MongoDB, a ready adapter is included:
+* Scope reads and writes by `guardName`.
+* Use transactions or equivalent atomic operations for replace-style `set*` methods.
+* Clean up related assignments when deleting roles or permissions.
+* Keep tenant assignments isolated by `tenantId`.
+* Use appropriate indexes and unique constraints.
+* Consider concurrency when implementing `add*` and `remove*`.
+* Add integration tests against the exact database version used in production.
+
+For multi-tenancy, user-assignment methods receive an optional:
+
+```ts
+tenantId?: string
+```
+
+When set, operate only on that tenant's assignments.
+
+When undefined, operate only on tenant-less assignments.
+
+For SQL databases, include `tenant_id` in the relevant uniqueness constraints if multi-tenancy is enabled.
+
+Caching and locking are intentionally left to the adapter/application layer.
+
+---
+
+# MongoDB / Mongoose adapter
+
+A production-oriented Mongoose adapter is included.
+
+Install:
 
 ```bash
 npm install @kenzings/nestjs-permission @nestjs/mongoose mongoose
-npx @kenzings/nestjs-permission init --database mongoose   # optional: generates a wrapper module
 ```
+
+Optionally generate a wrapper module:
+
+```bash
+npx @kenzings/nestjs-permission init --database mongoose
+```
+
+Example:
 
 ```ts
 import { Module } from "@nestjs/common";
@@ -353,28 +966,65 @@ import { PermissionsGuard } from "@kenzings/nestjs-permission";
 export class AppModule {}
 ```
 
-Notes:
+### Mongoose adapter notes
 
-- It uses five indexed collections mirroring the data model above; indexes are created on connection.
-- Replace-style methods (`syncPermissions`, `syncRoles`, `syncDirectPermissions`) run in a transaction, which requires a **replica set** (a single-node replica set is fine) or MongoDB Atlas — not a standalone server.
-- Use a named connection with `MongoosePermissionModule.forRoot({ connectionName: 'tenant-db' })`; pass core options through `permissionOptions`, e.g. `MongoosePermissionModule.forRoot({ permissionOptions: { wildcardPermissions: false } })`.
-- Schemas include optional `description` and `metadata` fields. [Multi-tenancy](#multi-tenancy) is supported out of the box: user assignments store `tenantId`, and the unique indexes already include it.
+The adapter:
 
-## Options
+* uses five indexed collections
+* creates indexes when the connection is established
+* supports `guardName`
+* supports multi-tenancy
+* supports optional `description` and `metadata` fields
 
-All entry points accept `NestPermissionModuleOptions`:
+Replace-style operations such as:
 
-| Option                | Default     | Meaning                                                              |
-| --------------------- | ----------- | --------------------------------------------------------------------- |
-| `userProperty`        | `'user'`    | Request property holding the authenticated user.                       |
-| `guardName`           | `'default'` | Namespace for all roles/permissions (e.g. separate `admin` vs `api`).  |
-| `wildcardPermissions` | `true`      | Enables `products.*` and `*` matching.                                 |
+```ts
+syncPermissions()
+syncRoles()
+syncDirectPermissions()
+```
 
-For the Mongoose module, pass them via `permissionOptions`.
+run inside MongoDB transactions.
 
-## Custom evaluator
+Therefore, transaction-based operations require a MongoDB replica set, including a single-node replica set, or MongoDB Atlas.
 
-To replace the allow/deny logic entirely (for example, evaluate against claims already on the JWT instead of the database), implement `PermissionEvaluator` and use `forRootWithEvaluator`:
+### Named connections
+
+Use a named connection when required:
+
+```ts
+MongoosePermissionModule.forRoot({
+  connectionName: "tenant-db",
+});
+```
+
+Pass core options through `permissionOptions`:
+
+```ts
+MongoosePermissionModule.forRoot({
+  permissionOptions: {
+    wildcardPermissions: false,
+  },
+});
+```
+
+---
+
+# Custom evaluator
+
+The default evaluator resolves permissions through the configured permission service.
+
+You can replace the authorization decision logic entirely.
+
+This is useful when permissions are already available in:
+
+* JWT claims
+* an external IAM system
+* request context
+* another authorization service
+* application-specific policy logic
+
+Implement `PermissionEvaluator`:
 
 ```ts
 import { Injectable } from "@nestjs/common";
@@ -385,26 +1035,314 @@ import {
 } from "@kenzings/nestjs-permission";
 
 @Injectable()
-export class JwtClaimsEvaluator implements PermissionEvaluator {
-  hasPermissions(user: PermissionUser | undefined, required: RequiredPermissions): boolean {
-    const granted = new Set(user?.permissions ?? []);
+export class JwtClaimsEvaluator
+  implements PermissionEvaluator
+{
+  hasPermissions(
+    user: PermissionUser | undefined,
+    required: RequiredPermissions,
+  ): boolean {
+    const granted = new Set(
+      user?.permissions ?? [],
+    );
+
     return required.mode === "all"
-      ? required.permissions.every((p) => granted.has(p))
-      : required.permissions.some((p) => granted.has(p));
+      ? required.permissions.every((permission) =>
+          granted.has(permission),
+        )
+      : required.permissions.some((permission) =>
+          granted.has(permission),
+        );
   }
 }
 ```
 
-## Support and issues
+Register it:
 
-Before reporting an issue, upgrade to the latest version and create a minimal reproduction. Include:
+```ts
+NestPermissionModule.forRootWithEvaluator(
+  JwtClaimsEvaluator,
+);
+```
 
-- Package, NestJS, Node.js, and database/ORM versions.
-- The adapter in use (built-in or custom) and relevant configuration.
-- Expected and actual behavior, error stack, and reproduction steps.
+This lets you keep the same route decorators and guards while replacing the underlying authorization decision.
 
-Security vulnerabilities must not be reported in public issues; contact the maintainer privately.
+---
 
-## Contributing
+# Options
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md). Run `npm run build` and `npm test` before opening a pull request. See [CHANGELOG.md](CHANGELOG.md) for release history and known limitations.
+All module entry points accept `NestPermissionModuleOptions`.
+
+| Option                | Default     | Description                                        |
+| --------------------- | ----------- | -------------------------------------------------- |
+| `userProperty`        | `"user"`    | Request property containing the authenticated user |
+| `guardName`           | `"default"` | Permission namespace                               |
+| `wildcardPermissions` | `true`      | Enables `products.*` and `*` matching              |
+
+For the Mongoose module, pass these options through `permissionOptions`.
+
+Example:
+
+```ts
+NestPermissionModule.forRoot({
+  userProperty: "currentUser",
+  guardName: "admin",
+  wildcardPermissions: true,
+});
+```
+
+---
+
+# Security considerations
+
+This package sits directly in the authorization layer of an application. Treat permission configuration and adapter implementations as security-sensitive code.
+
+## Authentication comes first
+
+`PermissionsGuard` is an authorization guard.
+
+It does not replace authentication.
+
+Your authentication guard must establish the identity before permission evaluation:
+
+```text
+Authentication
+      ↓
+request.user
+      ↓
+PermissionsGuard
+      ↓
+allow / deny
+```
+
+## Protect sensitive routes explicitly
+
+Routes without permission metadata are intentionally allowed through.
+
+Make sure sensitive endpoints have the appropriate decorator.
+
+## Treat `*` as highly privileged
+
+Granting:
+
+```text
+*
+```
+
+effectively bypasses all permission checks.
+
+Restrict assignment of wildcard permissions to trusted administrative workflows.
+
+## Scope every adapter query
+
+Custom repositories must correctly scope data by:
+
+```text
+guardName
+tenantId
+```
+
+where applicable.
+
+A repository implementation that ignores either namespace can cause authorization data to cross boundaries.
+
+## Test your production adapter
+
+Before deploying a custom adapter, test at minimum:
+
+* permission assignment
+* permission revocation
+* role assignment
+* role removal
+* deletion cleanup
+* wildcard matching
+* guard-name isolation
+* tenant isolation
+* concurrent updates
+
+---
+
+# Compatibility
+
+This package is currently in **0.x beta**.
+
+The public API may change before `1.0.0`.
+
+For production adoption, pin the package version and review the changelog before upgrading.
+
+Check the package metadata for the currently supported:
+
+* Node.js versions
+* NestJS versions
+* TypeScript versions
+* Mongoose versions
+
+---
+
+# When should I use this?
+
+Use `@kenzings/nestjs-permission` when you want:
+
+* route-level permission decorators
+* role-based access control
+* fine-grained permissions
+* direct user permissions
+* wildcard permissions
+* multi-tenant permissions
+* database-independent authorization
+* a NestJS-native guard/decorator API
+
+A typical application can model access like:
+
+```text
+admin
+ ├── users.*
+ ├── products.*
+ └── reports.*
+
+merchant
+ ├── products.read
+ ├── products.create
+ └── products.update
+
+support
+ ├── orders.read
+ └── orders.refund
+```
+
+Then application code checks the permission:
+
+```ts
+@RequirePermissions("orders.refund")
+refundOrder() {
+  // ...
+}
+```
+
+rather than coupling the route to a particular role.
+
+---
+
+# When should I consider another authorization library?
+
+This package intentionally focuses on permission and role-based authorization.
+
+Consider a more advanced policy engine when your authorization rules require complex conditions such as:
+
+```text
+user can edit article
+IF
+  user owns article
+  OR
+  user has editor role
+  AND
+  article belongs to user's organization
+```
+
+If your application needs sophisticated attribute-based or policy-based authorization, evaluate solutions such as CASL or a dedicated policy engine alongside this package.
+
+The goal of `@kenzings/nestjs-permission` is to remain a focused permission layer rather than become a general-purpose authorization framework.
+
+---
+
+# Development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Build:
+
+```bash
+npm run build
+```
+
+Run tests:
+
+```bash
+npm test
+```
+
+Before opening a pull request, make sure the project builds and tests pass.
+
+See:
+
+* [`CONTRIBUTING.md`](CONTRIBUTING.md)
+* [`CHANGELOG.md`](CHANGELOG.md)
+
+---
+
+# Support and issues
+
+Before reporting an issue:
+
+1. Upgrade to the latest version.
+2. Check the documentation.
+3. Create a minimal reproduction.
+4. Include the relevant package and environment versions.
+
+Please include:
+
+* `@kenzings/nestjs-permission` version
+* NestJS version
+* Node.js version
+* database/ORM version
+* adapter being used
+* relevant configuration
+* expected behavior
+* actual behavior
+* error stack
+* reproduction steps
+
+Do not include secrets, credentials, tokens, or private application data in issue reports.
+
+---
+
+# Security vulnerabilities
+
+**Do not report security vulnerabilities through public GitHub issues.**
+
+Use the repository's private security reporting mechanism or contact the maintainer privately.
+
+When reporting a vulnerability, include enough information to reproduce and validate the issue without exposing real credentials or sensitive production data.
+
+---
+
+# Contributing
+
+Contributions are welcome.
+
+Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request.
+
+For changes to authorization behavior, include tests covering both allowed and denied cases.
+
+Before submitting:
+
+```bash
+npm run build
+npm test
+```
+
+See [`CHANGELOG.md`](CHANGELOG.md) for release history and known limitations.
+
+---
+
+# License
+
+MIT
+
+---
+
+## Related projects
+
+* [NestJS](https://nestjs.com/)
+* [spatie/laravel-permission](https://spatie.be/docs/laravel-permission)
+* [CASL](https://casl.js.org/)
+
+---
+
+## Keywords
+
+NestJS, NestJS permission, NestJS authorization, NestJS RBAC, NestJS ACL, permission, permissions, authorization, access control, role-based access control, RBAC, ACL, NestJS guard, NestJS decorators, multi-tenant authorization

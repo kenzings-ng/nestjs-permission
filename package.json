@@ -1,10 +1,41 @@
 {
   "name": "@kenzings/nestjs-permission",
   "version": "0.1.2",
-  "description": "Permission-based authorization for NestJS.",
+  "description": "Permission-based authorization for NestJS with roles, direct permissions, wildcard permissions, guards, decorators, multi-tenancy, and database-agnostic persistence (MySQL, PostgreSQL, MongoDB, and more).",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "keywords": [
+    "nestjs",
+    "nest",
+    "permission",
+    "permissions",
+    "authorization",
+    "authz",
+    "rbac",
+    "acl",
+    "access-control",
+    "role-based-access-control",
+    "nestjs-guard",
+    "nestjs-decorator",
+    "wildcard-permissions",
+    "multi-tenant",
+    "multi-tenancy",
+    "mongoose",
+    "typescript"
+  ],
+  "homepage": "https://github.com/kenzings-ng/nestjs-permission#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kenzings-ng/nestjs-permission.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kenzings-ng/nestjs-permission/issues"
+  },
+  "author": "kenzings-ng",
+  "engines": {
+    "node": ">=18"
+  },
   "bin": {
     "nest-permission": "bin/nest-permission.js"
   },

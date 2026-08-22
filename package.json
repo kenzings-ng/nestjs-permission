@@ -1,6 +1,6 @@
 {
   "name": "@kenzings/nestjs-permission",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Permission-based authorization for NestJS with roles, direct permissions, wildcard permissions, guards, decorators, multi-tenancy, and database-agnostic persistence (MySQL, PostgreSQL, MongoDB, and more).",
   "license": "MIT",
   "main": "dist/index.js",

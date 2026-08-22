@@ -11,6 +11,7 @@ const commonNamedFields = {
   guardName: { type: String, required: true, default: 'default', trim: true },
   description: { type: String, trim: true },
   metadata: { type: Schema.Types.Mixed },
+  relationRevision: { type: Number, default: 0, select: false },
 };
 
 export const PermissionSchema = new Schema(commonNamedFields, { timestamps: true });
@@ -49,6 +50,7 @@ export interface NamedDocument {
   _id: Types.ObjectId;
   name: string;
   guardName: string;
+  relationRevision?: number;
 }
 
 export interface RolePermissionDocument {

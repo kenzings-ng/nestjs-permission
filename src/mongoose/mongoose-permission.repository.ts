@@ -30,12 +30,12 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async deletePermission(name: Permission, guardName: string): Promise<void> {
-    const permission = await this.permissions.findOneAndDelete({ name, guardName }).lean();
-    if (!permission) return;
-    await Promise.all([
-      this.rolePermissions.deleteMany({ permissionId: permission._id, guardName }),
-      this.userPermissions.deleteMany({ permissionId: permission._id, guardName }),
-    ]);
+    await this.runInTransaction(async (session) => {
+      const permission = await this.permissions.findOneAndDelete({ name, guardName }).session(session).lean();
+      if (!permission) return;
+      await this.rolePermissions.deleteMany({ permissionId: permission._id, guardName }).session(session);
+      await this.userPermissions.deleteMany({ permissionId: permission._id, guardName }).session(session);
+    });
   }
 
   async createRole(name: string, guardName: string): Promise<void> {
@@ -43,12 +43,12 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async deleteRole(name: string, guardName: string): Promise<void> {
-    const role = await this.roles.findOneAndDelete({ name, guardName }).lean();
-    if (!role) return;
-    await Promise.all([
-      this.rolePermissions.deleteMany({ roleId: role._id, guardName }),
-      this.userRoles.deleteMany({ roleId: role._id, guardName }),
-    ]);
+    await this.runInTransaction(async (session) => {
+      const role = await this.roles.findOneAndDelete({ name, guardName }).session(session).lean();
+      if (!role) return;
+      await this.rolePermissions.deleteMany({ roleId: role._id, guardName }).session(session);
+      await this.userRoles.deleteMany({ roleId: role._id, guardName }).session(session);
+    });
   }
 
   async permissionExists(name: Permission, guardName: string): Promise<boolean> {
@@ -60,9 +60,9 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async setRolePermissions(role: string, permissions: Permission[], guardName: string): Promise<void> {
-    const roleDocument = await this.findRole(role, guardName);
-    const permissionDocuments = await this.findPermissions(permissions, guardName);
     await this.runInTransaction(async (session) => {
+      const roleDocument = await this.findRole(role, guardName, session);
+      const permissionDocuments = await this.findPermissions(permissions, guardName, session);
       await this.rolePermissions.deleteMany({ roleId: roleDocument._id, guardName }).session(session);
       if (permissionDocuments.length) {
         await this.rolePermissions.insertMany(
@@ -86,9 +86,9 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async setUserRoles(userId: PermissionSubjectId, roles: string[], guardName: string, tenantId?: string): Promise<void> {
-    const roleDocuments = await this.findRoles(roles, guardName);
     const subjectId = String(userId);
     await this.runInTransaction(async (session) => {
+      const roleDocuments = await this.findRoles(roles, guardName, session);
       await this.userRoles.deleteMany({ subjectId, guardName, ...this.tenantFilter(tenantId) }).session(session);
       if (roleDocuments.length) {
         await this.userRoles.insertMany(
@@ -106,9 +106,9 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async setUserPermissions(userId: PermissionSubjectId, permissions: Permission[], guardName: string, tenantId?: string): Promise<void> {
-    const permissionDocuments = await this.findPermissions(permissions, guardName);
     const subjectId = String(userId);
     await this.runInTransaction(async (session) => {
+      const permissionDocuments = await this.findPermissions(permissions, guardName, session);
       await this.userPermissions.deleteMany({ subjectId, guardName, ...this.tenantFilter(tenantId) }).session(session);
       if (permissionDocuments.length) {
         await this.userPermissions.insertMany(
@@ -131,17 +131,16 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async addRolePermissions(role: string, permissions: Permission[], guardName: string): Promise<void> {
-    const roleDocument = await this.findRole(role, guardName);
-    const permissionDocuments = await this.findPermissions(permissions, guardName);
-    if (!permissionDocuments.length) return;
-    const existing = await this.rolePermissions.find({ roleId: roleDocument._id, guardName }).lean();
-    const existingIds = new Set(existing.map((relation) => relation.permissionId.toString()));
-    const toInsert = permissionDocuments
-      .filter((permission) => !existingIds.has(permission._id.toString()))
-      .map((permission) => ({ roleId: roleDocument._id, permissionId: permission._id, guardName }));
-    if (toInsert.length) {
-      await this.rolePermissions.insertMany(toInsert);
-    }
+    if (!permissions.length) return;
+    await this.runInTransaction(async (session) => {
+      const roleDocument = await this.findRole(role, guardName, session);
+      const permissionDocuments = await this.findPermissions(permissions, guardName, session);
+      if (!permissionDocuments.length) return;
+      await this.rolePermissions.bulkWrite(permissionDocuments.map((permission) => {
+        const relation = { roleId: roleDocument._id, permissionId: permission._id, guardName };
+        return { updateOne: { filter: relation, update: { $setOnInsert: relation }, upsert: true } };
+      }), { ordered: false, session });
+    });
   }
 
   async removeRolePermissions(role: string, permission: Permission, guardName: string): Promise<void> {
@@ -152,17 +151,17 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async addUserRoles(userId: PermissionSubjectId, roles: string[], guardName: string, tenantId?: string): Promise<void> {
-    const roleDocuments = await this.findRoles(roles, guardName);
+    if (!roles.length) return;
     const subjectId = String(userId);
-    if (!roleDocuments.length) return;
-    const existing = await this.userRoles.find({ subjectId, guardName, ...this.tenantFilter(tenantId) }).lean();
-    const existingIds = new Set(existing.map((relation) => relation.roleId.toString()));
-    const toInsert = roleDocuments
-      .filter((role) => !existingIds.has(role._id.toString()))
-      .map((role) => ({ subjectId, roleId: role._id, guardName, ...this.tenantFields(tenantId) }));
-    if (toInsert.length) {
-      await this.userRoles.insertMany(toInsert);
-    }
+    await this.runInTransaction(async (session) => {
+      const roleDocuments = await this.findRoles(roles, guardName, session);
+      if (!roleDocuments.length) return;
+      await this.userRoles.bulkWrite(roleDocuments.map((role) => {
+        const relation = { subjectId, roleId: role._id, guardName, ...this.tenantFields(tenantId) };
+        const filter = { subjectId, roleId: role._id, guardName, ...this.tenantFilter(tenantId) };
+        return { updateOne: { filter, update: { $setOnInsert: relation }, upsert: true } };
+      }), { ordered: false, session });
+    });
   }
 
   async removeUserRoles(userId: PermissionSubjectId, role: string, guardName: string, tenantId?: string): Promise<void> {
@@ -173,17 +172,17 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async addUserPermissions(userId: PermissionSubjectId, permissions: Permission[], guardName: string, tenantId?: string): Promise<void> {
-    const permissionDocuments = await this.findPermissions(permissions, guardName);
+    if (!permissions.length) return;
     const subjectId = String(userId);
-    if (!permissionDocuments.length) return;
-    const existing = await this.userPermissions.find({ subjectId, guardName, ...this.tenantFilter(tenantId) }).lean();
-    const existingIds = new Set(existing.map((relation) => relation.permissionId.toString()));
-    const toInsert = permissionDocuments
-      .filter((permission) => !existingIds.has(permission._id.toString()))
-      .map((permission) => ({ subjectId, permissionId: permission._id, guardName, ...this.tenantFields(tenantId) }));
-    if (toInsert.length) {
-      await this.userPermissions.insertMany(toInsert);
-    }
+    await this.runInTransaction(async (session) => {
+      const permissionDocuments = await this.findPermissions(permissions, guardName, session);
+      if (!permissionDocuments.length) return;
+      await this.userPermissions.bulkWrite(permissionDocuments.map((permission) => {
+        const relation = { subjectId, permissionId: permission._id, guardName, ...this.tenantFields(tenantId) };
+        const filter = { subjectId, permissionId: permission._id, guardName, ...this.tenantFilter(tenantId) };
+        return { updateOne: { filter, update: { $setOnInsert: relation }, upsert: true } };
+      }), { ordered: false, session });
+    });
   }
 
   async removeUserPermissions(userId: PermissionSubjectId, permission: Permission, guardName: string, tenantId?: string): Promise<void> {
@@ -205,31 +204,46 @@ export class MongoosePermissionRepository implements PermissionRepository {
   private async runInTransaction<T>(operation: (session: ClientSession) => Promise<T>): Promise<T> {
     const session = await this.rolePermissions.db.startSession();
     try {
-      session.startTransaction();
-      const result = await operation(session);
-      await session.commitTransaction();
-      return result;
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
+      return await session.withTransaction(() => operation(session));
     } finally {
-      session.endSession();
+      await session.endSession();
     }
   }
 
-  private async findRole(name: string, guardName: string): Promise<NamedDocument> {
-    const role = await this.roles.findOne({ name, guardName }).lean();
+  private async findRole(name: string, guardName: string, session?: ClientSession): Promise<NamedDocument> {
+    if (session) {
+      await this.roles.updateOne(
+        { name, guardName },
+        { $inc: { relationRevision: 1 } },
+        { session },
+      );
+    }
+    const query = this.roles.findOne({ name, guardName });
+    if (session) query.session(session);
+    const role = await query.lean();
     if (!role) throw new Error(`Role '${name}' was not found.`);
     return role;
   }
 
-  private async findRoles(names: string[], guardName: string): Promise<NamedDocument[]> {
+  private async findRoles(names: string[], guardName: string, session?: ClientSession): Promise<NamedDocument[]> {
     if (!names.length) return [];
-    return this.roles.find({ name: { $in: names }, guardName }).lean();
+    const filter = { name: { $in: names }, guardName };
+    if (session) {
+      await this.roles.updateMany(filter, { $inc: { relationRevision: 1 } }, { session });
+    }
+    const query = this.roles.find(filter);
+    if (session) query.session(session);
+    return query.lean();
   }
 
-  private async findPermissions(names: string[], guardName: string): Promise<NamedDocument[]> {
+  private async findPermissions(names: string[], guardName: string, session?: ClientSession): Promise<NamedDocument[]> {
     if (!names.length) return [];
-    return this.permissions.find({ name: { $in: names }, guardName }).lean();
+    const filter = { name: { $in: names }, guardName };
+    if (session) {
+      await this.permissions.updateMany(filter, { $inc: { relationRevision: 1 } }, { session });
+    }
+    const query = this.permissions.find(filter);
+    if (session) query.session(session);
+    return query.lean();
   }
 }

@@ -88,6 +88,8 @@ export class ProductsController {
 
 Both support wildcard permissions.
 
+Both decorators require at least one permission. An empty declaration fails during application startup instead of silently allowing the route.
+
 ---
 
 ## How it works
@@ -776,6 +778,8 @@ Register your own implementation:
   imports: [
     NestPermissionModule.forRootWithRepository(
       MyPermissionRepository,
+      {},
+      [MyDatabaseModule],
     ),
   ],
 })
@@ -984,7 +988,7 @@ syncRoles()
 syncDirectPermissions()
 ```
 
-run inside MongoDB transactions.
+as well as relation additions and role/permission cascade deletion run inside MongoDB transactions. Relation additions use idempotent upserts so concurrent duplicate assignments do not fail with duplicate-key errors.
 
 Therefore, transaction-based operations require a MongoDB replica set, including a single-node replica set, or MongoDB Atlas.
 
@@ -1062,8 +1066,12 @@ Register it:
 ```ts
 NestPermissionModule.forRootWithEvaluator(
   JwtClaimsEvaluator,
+  {},
+  [JwtModule],
 );
 ```
+
+The optional third argument supplies Nest modules required by the evaluator. `forRootWithRepositoryAndEvaluator` accepts the same imports array as its fourth argument.
 
 This lets you keep the same route decorators and guards while replacing the underlying authorization decision.
 

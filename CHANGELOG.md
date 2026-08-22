@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Fixed
 
+- Empty `RequirePermissions`/`RequireAnyPermission` declarations now fail fast instead of
+  bypassing authorization; the TypeScript API also requires a non-empty permission tuple.
+- Fixed in-memory guard and tenant isolation for empty tenant IDs and values containing `:`,
+  and return defensive copies from repository getters.
+- Fixed Mongoose named connections by injecting every model from the configured connection.
+- Mongoose relation additions now use transaction-scoped idempotent upserts, while role and
+  permission cascade deletion is atomic and shares a write-conflict boundary with relation creation.
+- Custom evaluator module entry points now forward imported modules required by evaluator dependencies.
+- Added Node ESM export conditions for the root and Mongoose entry points.
+- Restored `npm run lint` with ESLint flat configuration and TypeScript-aware rules.
 - `nest-permission init --database prisma|typeorm` now generates a `PermissionRepository`
   skeleton whose user-assignment methods include the `tenantId?: string` parameter, matching
   the core contract. The previous skeleton compiled (the parameter is optional) but silently

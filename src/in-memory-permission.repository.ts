@@ -16,12 +16,12 @@ export class InMemoryPermissionRepository implements PermissionRepository {
   async deletePermission(name: Permission, guardName: string): Promise<void> {
     this.permissions.delete(this.key(guardName, name));
     for (const [role, permissions] of this.rolePermissions) {
-      if (role.startsWith(`${guardName}:`)) {
+      if (this.belongsToGuard(role, guardName)) {
         this.rolePermissions.set(role, permissions.filter((permission) => permission !== name));
       }
     }
     for (const [user, permissions] of this.userPermissions) {
-      if (user.startsWith(`${guardName}:`)) {
+      if (this.belongsToGuard(user, guardName)) {
         this.userPermissions.set(user, permissions.filter((permission) => permission !== name));
       }
     }
@@ -36,7 +36,7 @@ export class InMemoryPermissionRepository implements PermissionRepository {
     this.roles.delete(key);
     this.rolePermissions.delete(key);
     for (const [user, roles] of this.userRoles) {
-      if (user.startsWith(`${guardName}:`)) {
+      if (this.belongsToGuard(user, guardName)) {
         this.userRoles.set(user, roles.filter((role) => role !== name));
       }
     }
@@ -55,7 +55,7 @@ export class InMemoryPermissionRepository implements PermissionRepository {
   }
 
   async getRolePermissions(role: string, guardName: string): Promise<Permission[]> {
-    return this.rolePermissions.get(this.key(guardName, role)) ?? [];
+    return [...(this.rolePermissions.get(this.key(guardName, role)) ?? [])];
   }
 
   async setUserRoles(userId: PermissionSubjectId, roles: string[], guardName: string, tenantId?: string): Promise<void> {
@@ -63,7 +63,7 @@ export class InMemoryPermissionRepository implements PermissionRepository {
   }
 
   async getUserRoles(userId: PermissionSubjectId, guardName: string, tenantId?: string): Promise<string[]> {
-    return this.userRoles.get(this.userKey(guardName, userId, tenantId)) ?? [];
+    return [...(this.userRoles.get(this.userKey(guardName, userId, tenantId)) ?? [])];
   }
 
   async setUserPermissions(userId: PermissionSubjectId, permissions: Permission[], guardName: string, tenantId?: string): Promise<void> {
@@ -71,14 +71,20 @@ export class InMemoryPermissionRepository implements PermissionRepository {
   }
 
   async getUserPermissions(userId: PermissionSubjectId, guardName: string, tenantId?: string): Promise<Permission[]> {
-    return this.userPermissions.get(this.userKey(guardName, userId, tenantId)) ?? [];
+    return [...(this.userPermissions.get(this.userKey(guardName, userId, tenantId)) ?? [])];
   }
 
   private key(guardName: string, name: string): string {
-    return `${guardName}:${name}`;
+    return JSON.stringify([guardName, name]);
   }
 
   private userKey(guardName: string, userId: PermissionSubjectId, tenantId?: string): string {
-    return `${guardName}:${tenantId ?? ''}:${String(userId)}`;
+    const tenantScope = tenantId === undefined ? ['global'] : ['tenant', tenantId];
+    return JSON.stringify([guardName, tenantScope, String(userId)]);
+  }
+
+  private belongsToGuard(key: string, guardName: string): boolean {
+    const tuple = JSON.parse(key) as unknown[];
+    return tuple[0] === guardName;
   }
 }

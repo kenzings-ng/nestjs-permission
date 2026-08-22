@@ -1,4 +1,5 @@
 export type Permission = string;
+export type NonEmptyPermissions = [Permission, ...Permission[]];
 export type PermissionMatchMode = 'all' | 'any';
 export type PermissionSubjectId = string | number;
 

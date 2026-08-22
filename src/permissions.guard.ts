@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, Inject, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSION_EVALUATOR, PERMISSION_OPTIONS, REQUIRED_PERMISSIONS_KEY } from './constants';
+import { assertNonEmptyPermissions } from './permission-metadata';
 import { NestPermissionModuleOptions, PermissionEvaluator, PermissionUser, RequiredPermissions } from './types';
 
 @Injectable()
@@ -16,7 +17,8 @@ export class PermissionsGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!required?.permissions.length) return true;
+    if (!required) return true;
+    assertNonEmptyPermissions(required.permissions);
 
     const request = context.switchToHttp().getRequest<Record<string, unknown>>();
     const user = request[this.options.userProperty ?? 'user'] as PermissionUser | undefined;

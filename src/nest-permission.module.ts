@@ -25,16 +25,18 @@ export class NestPermissionModule {
   static forRootWithEvaluator(
     evaluator: Type<PermissionEvaluator>,
     options: NestPermissionModuleOptions = {},
+    imports: ModuleMetadata['imports'] = [],
   ): DynamicModule {
-    return this.createModule(InMemoryPermissionRepository, evaluator, options);
+    return this.createModule(InMemoryPermissionRepository, evaluator, options, imports);
   }
 
   static forRootWithRepositoryAndEvaluator(
     repository: Type<PermissionRepository>,
     evaluator: Type<PermissionEvaluator>,
     options: NestPermissionModuleOptions = {},
+    imports: ModuleMetadata['imports'] = [],
   ): DynamicModule {
-    return this.createModule(repository, evaluator, options);
+    return this.createModule(repository, evaluator, options, imports);
   }
 
   private static createModule(

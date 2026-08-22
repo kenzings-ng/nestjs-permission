@@ -1,6 +1,6 @@
 import { InMemoryPermissionRepository } from '../src/in-memory-permission.repository';
 import { PermissionService } from '../src/permission.service';
-import { PermissionRepository, PermissionSubjectId } from '../src/types';
+import { PermissionRepository } from '../src/types';
 
 describe('PermissionService', () => {
   let service: PermissionService;

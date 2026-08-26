@@ -141,6 +141,7 @@ export class PermissionService {
 
   /** Checks whether the user holds every given permission (direct or via a role), honoring wildcards. */
   async hasAllPermissions(userId: PermissionSubjectId, ...permissions: Permission[]): Promise<boolean> {
+    if (!permissions.length) return false;
     const granted = await this.getAllPermissions(userId);
     return permissions.every((permission) => this.matchesAny(granted, permission));
   }
@@ -159,6 +160,7 @@ export class PermissionService {
 
   /** Checks whether the user has every given role assigned. */
   async hasAllRoles(userId: PermissionSubjectId, ...roles: string[]): Promise<boolean> {
+    if (!roles.length) return false;
     const assigned = await this.getRoles(userId);
     return roles.every((role) => assigned.includes(role));
   }

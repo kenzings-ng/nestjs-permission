@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-26
+
+### Fixed
+
+- Empty `hasAllPermissions`, `hasAllRoles`, and built-in evaluator requirements now deny access
+  instead of succeeding through empty-array matching.
+- `DefaultPermissionEvaluator` now honors wildcard permission matching and the
+  `wildcardPermissions` option while retaining its existing public API.
+
+### Added
+
+- MongoDB replica-set integration tests for Mongoose transactions, tenant isolation, idempotent
+  concurrent grants, and cascade deletion.
+- CI quality checks and compatibility coverage for supported Node.js, NestJS, and Mongoose versions.
+
 ### Fixed
 
 - Empty `RequirePermissions`/`RequireAnyPermission` declarations now fail fast instead of

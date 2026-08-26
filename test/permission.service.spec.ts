@@ -108,6 +108,11 @@ describe('PermissionService', () => {
     await expect(service.hasAnyPermission('user-1', 'products.publish', 'products.archive')).resolves.toBe(false);
   });
 
+  it('fails closed when all-checks receive no requirements', async () => {
+    await expect(service.hasAllPermissions('user-1')).resolves.toBe(false);
+    await expect(service.hasAllRoles('user-1')).resolves.toBe(false);
+  });
+
   it('isolates user assignments per tenant while sharing definitions', async () => {
     await service.createPermission('orders.read');
     await service.createPermission('orders.refund');

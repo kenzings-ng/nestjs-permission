@@ -1020,6 +1020,23 @@ The default evaluator resolves permissions through the configured permission ser
 
 You can replace the authorization decision logic entirely.
 
+If permissions are already attached to `request.user.permissions`, the exported
+`DefaultPermissionEvaluator` provides an inline evaluator with the same wildcard behavior as
+`PermissionService`:
+
+```ts
+import {
+  DefaultPermissionEvaluator,
+  NestPermissionModule,
+} from "@kenzings/nestjs-permission";
+
+NestPermissionModule.forRootWithEvaluator(DefaultPermissionEvaluator);
+```
+
+Despite its retained public name, `DefaultPermissionEvaluator` is not registered by
+`NestPermissionModule.forRoot()`; that method uses the repository-backed evaluator. Wildcards are
+enabled by default and honor the module's `wildcardPermissions` option.
+
 This is useful when permissions are already available in:
 
 * JWT claims

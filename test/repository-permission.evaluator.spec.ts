@@ -25,6 +25,14 @@ describe('RepositoryPermissionEvaluator', () => {
     ).resolves.toBe(false);
   });
 
+  it('fails closed when an all-check has no required permissions', async () => {
+    const { evaluator } = await setup();
+
+    await expect(
+      evaluator.hasPermissions({ permissions: [] }, { permissions: [], mode: 'all' }),
+    ).resolves.toBe(false);
+  });
+
   it('resolves permissions for the global (tenant-less) scope when tenantId is absent', async () => {
     const { service, evaluator } = await setup();
     await service.assignRole('user-1', 'viewer');

@@ -1,9 +1,17 @@
 import { DefaultPermissionEvaluator } from '../src/default-permission.evaluator';
-import { RequiredPermissions } from '../src/types';
+import { NestPermissionModuleOptions, RequiredPermissions } from '../src/types';
 
 describe('DefaultPermissionEvaluator', () => {
+  const required: RequiredPermissions = { permissions: ['orders.read'], mode: 'all' };
+
+  it('fails closed when an all-check has no required permissions', () => {
+    const evaluator = new DefaultPermissionEvaluator();
+
+    expect(evaluator.hasPermissions({ permissions: [] }, { permissions: [], mode: 'all' })).toBe(false);
+  });
+
   describe('without options (wildcard enabled by default)', () => {
-    const evaluator = new DefaultPermissionEvaluator(null);
+    const evaluator = new DefaultPermissionEvaluator();
 
     const all: RequiredPermissions = { permissions: ['products.create'], mode: 'all' };
     const any: RequiredPermissions = { permissions: ['products.create', 'products.delete'], mode: 'any' };
@@ -56,7 +64,10 @@ describe('DefaultPermissionEvaluator', () => {
   });
 
   describe('with wildcardPermissions: false', () => {
-    const evaluator = new DefaultPermissionEvaluator({ wildcardPermissions: false });
+    const ConfigurableEvaluator = DefaultPermissionEvaluator as unknown as new (
+      options?: NestPermissionModuleOptions,
+    ) => DefaultPermissionEvaluator;
+    const evaluator = new ConfigurableEvaluator({ wildcardPermissions: false });
 
     it('does not expand namespace wildcards when disabled', () => {
       expect(
@@ -74,6 +85,10 @@ describe('DefaultPermissionEvaluator', () => {
           { permissions: ['products.create'], mode: 'all' },
         ),
       ).toBe(true);
+    });
+
+    it('cannot match wildcard with required orders.read', () => {
+      expect(evaluator.hasPermissions({ permissions: ['orders.*'] }, required)).toBe(false);
     });
   });
 });

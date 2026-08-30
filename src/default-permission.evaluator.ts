@@ -13,14 +13,15 @@ import { NestPermissionModuleOptions, PermissionEvaluator, PermissionUser, Requi
 @Injectable()
 export class DefaultPermissionEvaluator implements PermissionEvaluator {
   constructor(
-    @Optional() @Inject(PERMISSION_OPTIONS) private readonly options: NestPermissionModuleOptions | null = null,
+    @Optional() @Inject(PERMISSION_OPTIONS) private readonly options: NestPermissionModuleOptions = {},
   ) {}
 
   hasPermissions(user: PermissionUser | undefined, required: RequiredPermissions): boolean {
     if (!user?.permissions) return false;
-    const granted = [...user.permissions];
-    const wildcard = this.options?.wildcardPermissions !== false;
-    const has = (permission: string) => granted.some((g) => matchesPermission(g, permission, wildcard));
+    if (!required.permissions.length) return false;
+    const granted = new Set(user.permissions);
+    const has = (permission: string) =>
+      [...granted].some((value) => matchesPermission(value, permission, this.options.wildcardPermissions !== false));
     return required.mode === 'all'
       ? required.permissions.every(has)
       : required.permissions.some(has);

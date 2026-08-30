@@ -1,4 +1,5 @@
 import { DynamicModule, Module, ModuleMetadata, Provider, Type } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { PERMISSION_EVALUATOR, PERMISSION_OPTIONS, PERMISSION_REPOSITORY } from './constants';
 import { InMemoryPermissionRepository } from './in-memory-permission.repository';
 import { PermissionService } from './permission.service';
@@ -99,13 +100,21 @@ export class NestPermissionModule {
       evaluator,
       { provide: PERMISSION_EVALUATOR, useExisting: evaluator },
       PermissionsGuard,
+      Reflector,
     ];
 
     return {
       module: NestPermissionModule,
       imports,
       providers,
-      exports: [PERMISSION_EVALUATOR, PERMISSION_REPOSITORY, PermissionService, PermissionsGuard],
+      exports: [
+        PERMISSION_OPTIONS,
+        PERMISSION_EVALUATOR,
+        PERMISSION_REPOSITORY,
+        PermissionService,
+        PermissionsGuard,
+        Reflector,
+      ],
     };
   }
 
@@ -123,13 +132,21 @@ export class NestPermissionModule {
       evaluator,
       { provide: PERMISSION_EVALUATOR, useExisting: evaluator },
       PermissionsGuard,
+      Reflector,
     ];
 
     return {
       module: NestPermissionModule,
       imports: [...(asyncOptions.imports ?? []), ...(extraImports ?? [])],
       providers,
-      exports: [PERMISSION_EVALUATOR, PERMISSION_REPOSITORY, PermissionService, PermissionsGuard],
+      exports: [
+        PERMISSION_OPTIONS,
+        PERMISSION_EVALUATOR,
+        PERMISSION_REPOSITORY,
+        PermissionService,
+        PermissionsGuard,
+        Reflector,
+      ],
     };
   }
 

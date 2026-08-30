@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.3.1]
+
+### Fixed
+
+- Export `Reflector` and `PERMISSION_OPTIONS` from `NestPermissionModule` to prevent NestJS DI dependency resolution errors when registering `PermissionsGuard` in application root modules or `@nestjs/testing` environments.
+
 ## [0.3.0]
 
 ### Added

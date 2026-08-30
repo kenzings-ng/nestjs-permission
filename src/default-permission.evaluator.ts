@@ -3,7 +3,13 @@ import { PERMISSION_OPTIONS } from './constants';
 import { matchesPermission } from './permission-matcher';
 import { NestPermissionModuleOptions, PermissionEvaluator, PermissionUser, RequiredPermissions } from './types';
 
-/** Evaluates the `permissions` collection attached to the authenticated user. */
+/**
+ * Evaluates the `permissions` collection attached to the authenticated user object.
+ *
+ * Supports wildcard permissions (`products.*`, `*`) when `wildcardPermissions` is enabled
+ * (the default). Use this evaluator when you want to keep permission data on the user object
+ * rather than querying a database on every request.
+ */
 @Injectable()
 export class DefaultPermissionEvaluator implements PermissionEvaluator {
   constructor(

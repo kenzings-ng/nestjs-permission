@@ -46,3 +46,24 @@ describe('MongoosePermissionModule', () => {
     );
   });
 });
+
+describe('MongoosePermissionModule.forRootAsync', () => {
+  it('supports forRootAsync with useFactory and named connection', () => {
+    const connectionName = 'async-tenant-db';
+    const module = MongoosePermissionModule.forRootAsync({
+      connectionName,
+      useFactory: () => ({
+        guardName: 'async-mongoose-guard',
+      }),
+    });
+
+    const permissionModule = module.imports?.[1] as DynamicModule;
+    const repositoryType = permissionModule.providers?.find(
+      (provider): provider is Type<MongoosePermissionRepository> =>
+        typeof provider === 'function'
+        && (provider === MongoosePermissionRepository || provider.prototype instanceof MongoosePermissionRepository),
+    );
+
+    expect(repositoryType).toBeDefined();
+  });
+});

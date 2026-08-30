@@ -4,6 +4,45 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.3.0]
+
+### Added
+
+- **`NestPermissionModule.forRootAsync(options)`** — registers the module with asynchronous options.
+  Supports `useFactory` (with `inject`), `useClass`, and `useExisting` patterns. Allows
+  deriving `guardName`, `wildcardPermissions`, and `userProperty` from `ConfigService` or any
+  other async/dynamic provider without timing issues.
+- **`NestPermissionModule.forRootAsyncWithRepository(repository, options)`** — async variant of
+  `forRootWithRepository`, combining a custom `PermissionRepository` class with async core options.
+- **`MongoosePermissionModule.forRootAsync(options)`** — async variant of
+  `MongoosePermissionModule.forRoot`. Supports all three async patterns and accepts an optional
+  `connectionName` alongside the async options.
+- **`NestPermissionModuleAsyncOptions`** and **`NestPermissionModuleOptionsFactory`** interfaces
+  exported from the main entry point, enabling typed `useClass`/`useExisting` implementations.
+- **`PermissionService.getDirectPermissions(userId)`** — returns only the permissions granted
+  directly to the user, without merging role-inherited permissions. Useful for admin UIs and
+  audit logs that need to distinguish the two sources. Tenant-scoped when called on a scoped
+  service returned by `forTenant()`.
+- **`PermissionService.listPermissions()`** — returns all defined permission names for the
+  active guard. Delegates to the optional `PermissionRepository.listPermissions?()` hook;
+  returns `undefined` when the repository doesn't implement it.
+- **`PermissionService.listRoles()`** — returns all defined role names for the active guard.
+  Delegates to the optional `PermissionRepository.listRoles?()` hook; returns `undefined`
+  when the repository doesn't implement it.
+- **`PermissionRepository.listPermissions?` and `listRoles?`** optional methods added to the
+  repository contract. Both `InMemoryPermissionRepository` and `MongoosePermissionRepository`
+  now implement them.
+- Comprehensive JSDoc on all public `PermissionService` methods, improving IDE hover
+  documentation and discoverability.
+
+### Fixed
+
+- **`DefaultPermissionEvaluator` now supports wildcard permissions** (`products.*`, `*`).
+  Previously it used exact `Set.has()` matching, so inline `user.permissions` with wildcards
+  were silently not expanded. The evaluator now accepts `PERMISSION_OPTIONS` (optional injection)
+  and delegates to `matchesPermission()` — the same matcher already used by
+  `RepositoryPermissionEvaluator`. Existing behaviour for exact matches is unchanged.
+
 ## [0.2.1] - 2026-08-26
 
 ### Fixed
@@ -18,37 +57,6 @@ All notable changes to this project are documented in this file. The format foll
 - MongoDB replica-set integration tests for Mongoose transactions, tenant isolation, idempotent
   concurrent grants, and cascade deletion.
 - CI quality checks and compatibility coverage for supported Node.js, NestJS, and Mongoose versions.
-
-### Fixed
-
-- Empty `RequirePermissions`/`RequireAnyPermission` declarations now fail fast instead of
-  bypassing authorization; the TypeScript API also requires a non-empty permission tuple.
-- Fixed in-memory guard and tenant isolation for empty tenant IDs and values containing `:`,
-  and return defensive copies from repository getters.
-- Fixed Mongoose named connections by injecting every model from the configured connection.
-- Mongoose relation additions now use transaction-scoped idempotent upserts, while role and
-  permission cascade deletion is atomic and shares a write-conflict boundary with relation creation.
-- Custom evaluator module entry points now forward imported modules required by evaluator dependencies.
-- Added Node ESM export conditions for the root and Mongoose entry points.
-- Restored `npm run lint` with ESLint flat configuration and TypeScript-aware rules.
-- `nest-permission init --database prisma|typeorm` now generates a `PermissionRepository`
-  skeleton whose user-assignment methods include the `tenantId?: string` parameter, matching
-  the core contract. The previous skeleton compiled (the parameter is optional) but silently
-  produced a non-tenant-aware adapter, since TypeScript does not require an implementation to
-  declare an optional parameter it never reads.
-- Added dedicated unit tests for `RepositoryPermissionEvaluator` covering the tenant-routing
-  path (`user.tenantId` → `PermissionService.forTenant()`), tenant isolation, wildcard matching
-  under a tenant scope, and the `user.permissions` pass-through path. Previously only
-  `PermissionService.forTenant()` itself was covered; the guard/evaluator wiring that reads
-  `request.user.tenantId` had no direct test.
-
-### Planned
-
-- Official Prisma adapter with schema generator, migrations, and integration tests.
-- Official TypeORM adapter with entities, migrations, and integration tests.
-- Cache invalidation contract and Redis reference adapter.
-- MongoDB integration tests for the Mongoose adapter's tenant filtering (currently covered
-  only indirectly through the in-memory repository).
 
 ## [0.1.2]
 

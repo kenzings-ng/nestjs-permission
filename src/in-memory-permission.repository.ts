@@ -74,6 +74,24 @@ export class InMemoryPermissionRepository implements PermissionRepository {
     return [...(this.userPermissions.get(this.userKey(guardName, userId, tenantId)) ?? [])];
   }
 
+  async listPermissions(guardName: string): Promise<Permission[]> {
+    const result: Permission[] = [];
+    for (const key of this.permissions) {
+      const [g, name] = JSON.parse(key) as [string, string];
+      if (g === guardName) result.push(name);
+    }
+    return result;
+  }
+
+  async listRoles(guardName: string): Promise<string[]> {
+    const result: string[] = [];
+    for (const key of this.roles) {
+      const [g, name] = JSON.parse(key) as [string, string];
+      if (g === guardName) result.push(name);
+    }
+    return result;
+  }
+
   private key(guardName: string, name: string): string {
     return JSON.stringify([guardName, name]);
   }
@@ -88,3 +106,4 @@ export class InMemoryPermissionRepository implements PermissionRepository {
     return tuple[0] === guardName;
   }
 }
+

@@ -29,6 +29,34 @@ export interface NestPermissionModuleOptions {
 }
 
 /**
+ * Factory function or class that produces NestPermissionModuleOptions.
+ * Implement this when using `useClass` or `useExisting` with `forRootAsync`.
+ */
+export interface NestPermissionModuleOptionsFactory {
+  createPermissionOptions(): Promise<NestPermissionModuleOptions> | NestPermissionModuleOptions;
+}
+
+/**
+ * Async configuration options for NestPermissionModule.
+ * Supports `useFactory`, `useClass`, and `useExisting` patterns.
+ */
+export interface NestPermissionModuleAsyncOptions extends Pick<import('@nestjs/common').ModuleMetadata, 'imports'> {
+  /**
+   * Factory function that returns the module options.
+   * Can be async. Values listed in `inject` are passed as arguments.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  useFactory?: (...args: any[]) => Promise<NestPermissionModuleOptions> | NestPermissionModuleOptions;
+  /** Tokens to inject into `useFactory`. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  inject?: any[];
+  /** Class that implements `NestPermissionModuleOptionsFactory`. Instantiated by Nest DI. */
+  useClass?: import('@nestjs/common').Type<NestPermissionModuleOptionsFactory>;
+  /** Existing provider token that implements `NestPermissionModuleOptionsFactory`. */
+  useExisting?: import('@nestjs/common').Type<NestPermissionModuleOptionsFactory>;
+}
+
+/**
  * ORM-independent persistence contract. Implement this for any SQL or NoSQL database.
  *
  * `tenantId` only applies to user↔role and user↔permission assignments: when provided, the
@@ -55,4 +83,9 @@ export interface PermissionRepository {
   removeUserRoles?(userId: PermissionSubjectId, role: string, guardName: string, tenantId?: string): Promise<void>;
   addUserPermissions?(userId: PermissionSubjectId, permissions: Permission[], guardName: string, tenantId?: string): Promise<void>;
   removeUserPermissions?(userId: PermissionSubjectId, permission: Permission, guardName: string, tenantId?: string): Promise<void>;
+  /** Returns all defined permission names for the given guard. */
+  listPermissions?(guardName: string): Promise<Permission[]>;
+  /** Returns all defined role names for the given guard. */
+  listRoles?(guardName: string): Promise<string[]>;
 }
+

@@ -192,6 +192,16 @@ export class MongoosePermissionRepository implements PermissionRepository {
     await this.userPermissions.deleteMany({ subjectId, permissionId: permissionDocument._id, guardName, ...this.tenantFilter(tenantId) });
   }
 
+  async listPermissions(guardName: string): Promise<Permission[]> {
+    const docs = await this.permissions.find({ guardName }, { name: 1 }).lean();
+    return docs.map((doc) => doc.name);
+  }
+
+  async listRoles(guardName: string): Promise<string[]> {
+    const docs = await this.roles.find({ guardName }, { name: 1 }).lean();
+    return docs.map((doc) => doc.name);
+  }
+
   /** Filter matching one tenant's assignments; `undefined` matches only tenant-less documents. */
   private tenantFilter(tenantId?: string): Record<string, unknown> {
     return tenantId === undefined ? { tenantId: null } : { tenantId };

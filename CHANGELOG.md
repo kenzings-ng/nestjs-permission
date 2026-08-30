@@ -26,14 +26,49 @@ All notable changes to this project are documented in this file. The format foll
   under a tenant scope, and the `user.permissions` pass-through path. Previously only
   `PermissionService.forTenant()` itself was covered; the guard/evaluator wiring that reads
   `request.user.tenantId` had no direct test.
+- **`DefaultPermissionEvaluator` now supports wildcard permissions** (`products.*`, `*`).
+  Previously it used exact `Set.has()` matching, so inline `user.permissions` with wildcards
+  were silently not expanded. The evaluator now accepts `PERMISSION_OPTIONS` (optional injection)
+  and delegates to `matchesPermission()` — the same matcher already used by
+  `RepositoryPermissionEvaluator`. Existing behaviour for exact matches is unchanged.
 
-### Planned
+### Added
 
-- Official Prisma adapter with schema generator, migrations, and integration tests.
-- Official TypeORM adapter with entities, migrations, and integration tests.
-- Cache invalidation contract and Redis reference adapter.
-- MongoDB integration tests for the Mongoose adapter's tenant filtering (currently covered
-  only indirectly through the in-memory repository).
+- **`PermissionService.getDirectPermissions(userId)`** — returns only the permissions granted
+  directly to the user, without merging role-inherited permissions. Useful for admin UIs and
+  audit logs that need to distinguish the two sources. Tenant-scoped when called on a scoped
+  service returned by `forTenant()`.
+- **`PermissionService.listPermissions()`** — returns all defined permission names for the
+  active guard. Delegates to the optional `PermissionRepository.listPermissions?()` hook;
+  returns `undefined` when the repository doesn't implement it.
+- **`PermissionService.listRoles()`** — returns all defined role names for the active guard.
+  Delegates to the optional `PermissionRepository.listRoles?()` hook; returns `undefined`
+  when the repository doesn't implement it.
+- **`PermissionRepository.listPermissions?` and `listRoles?`** optional methods added to the
+  repository contract. Both `InMemoryPermissionRepository` and `MongoosePermissionRepository`
+  now implement them.
+- Comprehensive JSDoc on all public `PermissionService` methods, improving IDE hover
+  documentation and discoverability.
+- New test suites: `DefaultPermissionEvaluator` (wildcard/exact/disabled), `matchesPermission`
+  edge cases, and `PermissionService` new methods (`listPermissions`, `listRoles`,
+  `getDirectPermissions` including tenant isolation). Test count: **32 → 65**.
+
+## [0.3.0]
+
+### Added
+
+- **`NestPermissionModule.forRootAsync(options)`** — registers the module with asynchronous options.
+  Supports `useFactory` (with `inject`), `useClass`, and `useExisting` patterns. Allows
+  deriving `guardName`, `wildcardPermissions`, and `userProperty` from `ConfigService` or any
+  other async/dynamic provider without timing issues.
+- **`NestPermissionModule.forRootAsyncWithRepository(repository, options)`** — async variant of
+  `forRootWithRepository`, combining a custom `PermissionRepository` class with async core options.
+- **`MongoosePermissionModule.forRootAsync(options)`** — async variant of
+  `MongoosePermissionModule.forRoot`. Supports all three async patterns and accepts an optional
+  `connectionName` alongside the async options.
+- **`NestPermissionModuleAsyncOptions`** and **`NestPermissionModuleOptionsFactory`** interfaces
+  exported from the main entry point, enabling typed `useClass`/`useExisting` implementations.
+
 
 ## [0.1.2]
 

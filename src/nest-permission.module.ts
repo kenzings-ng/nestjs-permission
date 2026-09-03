@@ -1,4 +1,4 @@
-import { DynamicModule, Module, ModuleMetadata, Provider, Type } from '@nestjs/common';
+import { DynamicModule, Global, Module, ModuleMetadata, Provider, Type } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSION_EVALUATOR, PERMISSION_OPTIONS, PERMISSION_REPOSITORY } from './constants';
 import { InMemoryPermissionRepository } from './in-memory-permission.repository';
@@ -13,6 +13,7 @@ import {
   PermissionRepository,
 } from './types';
 
+@Global()
 @Module({})
 export class NestPermissionModule {
   /** Registers the module with synchronous static options. */
@@ -105,6 +106,7 @@ export class NestPermissionModule {
 
     return {
       module: NestPermissionModule,
+      global: true,
       imports,
       providers,
       exports: [
@@ -137,6 +139,7 @@ export class NestPermissionModule {
 
     return {
       module: NestPermissionModule,
+      global: true,
       imports: [...(asyncOptions.imports ?? []), ...(extraImports ?? [])],
       providers,
       exports: [

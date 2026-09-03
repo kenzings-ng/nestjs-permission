@@ -1,4 +1,4 @@
-import { DynamicModule, Injectable, Module, ModuleMetadata } from '@nestjs/common';
+import { DynamicModule, Global, Injectable, Module, ModuleMetadata } from '@nestjs/common';
 import { InjectModel, MongooseModule } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { NestPermissionModule } from '../nest-permission.module';
@@ -75,6 +75,7 @@ export interface MongoosePermissionModuleAsyncOptions
   useExisting?: import('@nestjs/common').Type<NestPermissionModuleOptionsFactory>;
 }
 
+@Global()
 @Module({})
 export class MongoosePermissionModule {
   /** Registers the Mongoose-backed permission module with synchronous options. */
@@ -90,6 +91,7 @@ export class MongoosePermissionModule {
 
     return {
       module: MongoosePermissionModule,
+      global: true,
       imports: [models, permissionModule],
       exports: [permissionModule],
     };
@@ -130,6 +132,7 @@ export class MongoosePermissionModule {
 
     return {
       module: MongoosePermissionModule,
+      global: true,
       imports: [models, permissionModule],
       exports: [permissionModule],
     };

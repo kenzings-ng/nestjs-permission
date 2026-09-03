@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.3.3]
+
+### Fixed
+
+- **Global Scope for NestPermissionModule & MongoosePermissionModule**: Added `@Global()` decorator and `global: true` to all DynamicModule returns (`forRoot`, `forRootAsync`, `forRootWithRepository`, `forRootAsyncWithRepository`, etc.). This resolves `UnknownDependenciesException` when injecting `PermissionService` into feature modules without needing manual re-imports.
+
 ## [0.3.2]
 
 ### Changed

@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { InMemoryPermissionRepository } from '../src/in-memory-permission.repository';
 import { PermissionService } from '../src/permission.service';
 import { PermissionRepository } from '../src/types';
@@ -136,5 +137,27 @@ describe('PermissionService', () => {
     await tenantA.removeRole('user-1', 'viewer');
     await expect(tenantA.hasPermissionTo('user-1', 'orders.read')).resolves.toBe(false);
     await expect(tenantA.hasPermissionTo('user-1', 'orders.refund')).resolves.toBe(true);
+  });
+
+  it('rejects creating a permission or role that already exists for the guard', async () => {
+    await service.createPermission('products.create');
+    await expect(service.createPermission('products.create')).rejects.toThrow(ConflictException);
+
+    await service.createRole('merchant');
+    await expect(service.createRole('merchant')).rejects.toThrow(ConflictException);
+  });
+
+  it('allows the same permission or role name to be created independently per guard', async () => {
+    const repository = new InMemoryPermissionRepository();
+    const adminService = new PermissionService(repository, { guardName: 'admin' });
+    const customerService = new PermissionService(repository, { guardName: 'customer' });
+
+    await adminService.createPermission('orders.read');
+    await customerService.createPermission('orders.read');
+    await adminService.createRole('viewer');
+    await customerService.createRole('viewer');
+
+    await expect(adminService.createPermission('orders.read')).rejects.toThrow(ConflictException);
+    await expect(customerService.createRole('viewer')).rejects.toThrow(ConflictException);
   });
 });

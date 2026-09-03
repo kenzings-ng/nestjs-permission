@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PERMISSION_OPTIONS, PERMISSION_REPOSITORY } from './constants';
 import { matchesPermission } from './permission-matcher';
 import { NestPermissionModuleOptions, Permission, PermissionRepository, PermissionSubjectId } from './types';
@@ -27,9 +27,16 @@ export class PermissionService {
     return scoped;
   }
 
-  /** Registers a new permission name that can be assigned to roles and users. */
-  createPermission(name: Permission): Promise<void> {
-    return this.repository.createPermission(name, this.guardName);
+  /**
+   * Registers a new permission name that can be assigned to roles and users.
+   *
+   * Throws ConflictException if a permission with this name already exists for the guard.
+   */
+  async createPermission(name: Permission): Promise<void> {
+    if (await this.repository.permissionExists(name, this.guardName)) {
+      throw new ConflictException(`Permission '${name}' already exists for guard '${this.guardName}'.`);
+    }
+    await this.repository.createPermission(name, this.guardName);
   }
 
   /**
@@ -40,9 +47,16 @@ export class PermissionService {
     return this.repository.deletePermission(name, this.guardName);
   }
 
-  /** Registers a new role that permissions can be granted to and users can be assigned. */
-  createRole(name: string): Promise<void> {
-    return this.repository.createRole(name, this.guardName);
+  /**
+   * Registers a new role that permissions can be granted to and users can be assigned.
+   *
+   * Throws ConflictException if a role with this name already exists for the guard.
+   */
+  async createRole(name: string): Promise<void> {
+    if (await this.repository.roleExists(name, this.guardName)) {
+      throw new ConflictException(`Role '${name}' already exists for guard '${this.guardName}'.`);
+    }
+    await this.repository.createRole(name, this.guardName);
   }
 
   /**

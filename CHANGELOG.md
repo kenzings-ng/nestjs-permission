@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.3.2]
+
+### Changed
+
+- **`PermissionService.createPermission(name)`** and **`createRole(name)`** now throw a
+  `ConflictException` when a permission or role with that name already exists for the guard,
+  instead of silently succeeding a second time.
+
 ## [0.3.1]
 
 ### Fixed

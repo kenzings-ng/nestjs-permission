@@ -328,6 +328,8 @@ Permissions and roles must exist before they can be assigned.
 
 Assigning an unknown permission or role throws a `NotFoundException`.
 
+Creating a permission or role name that already exists (for the same guard) throws a `ConflictException`.
+
 ---
 
 # Direct permissions

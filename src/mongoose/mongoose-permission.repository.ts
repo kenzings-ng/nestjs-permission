@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model } from 'mongoose';
+import {
+  assertOptionalTenantId,
+  assertPermissionString,
+  assertPermissionStrings,
+  assertSubjectId,
+} from '../permission-input';
 import { Permission, PermissionRepository, PermissionSubjectId } from '../types';
 import {
   NamedDocument,
@@ -26,10 +32,12 @@ export class MongoosePermissionRepository implements PermissionRepository {
   ) {}
 
   async createPermission(name: Permission, guardName: string): Promise<void> {
+    this.assertName(name, guardName, 'permission');
     await this.permissions.updateOne({ name, guardName }, { $setOnInsert: { name, guardName } }, { upsert: true });
   }
 
   async deletePermission(name: Permission, guardName: string): Promise<void> {
+    this.assertName(name, guardName, 'permission');
     await this.runInTransaction(async (session) => {
       const permission = await this.permissions.findOneAndDelete({ name, guardName }).session(session).lean();
       if (!permission) return;
@@ -39,10 +47,12 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async createRole(name: string, guardName: string): Promise<void> {
+    this.assertName(name, guardName, 'role');
     await this.roles.updateOne({ name, guardName }, { $setOnInsert: { name, guardName } }, { upsert: true });
   }
 
   async deleteRole(name: string, guardName: string): Promise<void> {
+    this.assertName(name, guardName, 'role');
     await this.runInTransaction(async (session) => {
       const role = await this.roles.findOneAndDelete({ name, guardName }).session(session).lean();
       if (!role) return;
@@ -52,14 +62,18 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async permissionExists(name: Permission, guardName: string): Promise<boolean> {
+    this.assertName(name, guardName, 'permission');
     return (await this.permissions.exists({ name, guardName })) !== null;
   }
 
   async roleExists(name: string, guardName: string): Promise<boolean> {
+    this.assertName(name, guardName, 'role');
     return (await this.roles.exists({ name, guardName })) !== null;
   }
 
   async setRolePermissions(role: string, permissions: Permission[], guardName: string): Promise<void> {
+    this.assertName(role, guardName, 'role');
+    assertPermissionStrings(permissions, 'permission');
     await this.runInTransaction(async (session) => {
       const roleDocument = await this.findRole(role, guardName, session);
       const permissionDocuments = await this.findPermissions(permissions, guardName, session);
@@ -78,6 +92,7 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async getRolePermissions(role: string, guardName: string): Promise<Permission[]> {
+    this.assertName(role, guardName, 'role');
     const roleDocument = await this.findRole(role, guardName);
     const relations = await this.rolePermissions.find({ roleId: roleDocument._id, guardName }).lean();
     const ids = relations.map((relation) => relation.permissionId);
@@ -86,6 +101,8 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async setUserRoles(userId: PermissionSubjectId, roles: string[], guardName: string, tenantId?: string): Promise<void> {
+    this.assertSubject(userId, guardName, tenantId);
+    assertPermissionStrings(roles, 'role');
     const subjectId = String(userId);
     await this.runInTransaction(async (session) => {
       const roleDocuments = await this.findRoles(roles, guardName, session);
@@ -100,12 +117,15 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async getUserRoles(userId: PermissionSubjectId, guardName: string, tenantId?: string): Promise<string[]> {
+    this.assertSubject(userId, guardName, tenantId);
     const relations = await this.userRoles.find({ subjectId: String(userId), guardName, ...this.tenantFilter(tenantId) }).lean();
     const roles = await this.roles.find({ _id: { $in: relations.map((relation) => relation.roleId) }, guardName }).lean();
     return roles.map((role) => role.name);
   }
 
   async setUserPermissions(userId: PermissionSubjectId, permissions: Permission[], guardName: string, tenantId?: string): Promise<void> {
+    this.assertSubject(userId, guardName, tenantId);
+    assertPermissionStrings(permissions, 'permission');
     const subjectId = String(userId);
     await this.runInTransaction(async (session) => {
       const permissionDocuments = await this.findPermissions(permissions, guardName, session);
@@ -125,12 +145,15 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async getUserPermissions(userId: PermissionSubjectId, guardName: string, tenantId?: string): Promise<Permission[]> {
+    this.assertSubject(userId, guardName, tenantId);
     const relations = await this.userPermissions.find({ subjectId: String(userId), guardName, ...this.tenantFilter(tenantId) }).lean();
     const permissions = await this.permissions.find({ _id: { $in: relations.map((relation) => relation.permissionId) }, guardName }).lean();
     return permissions.map((permission) => permission.name);
   }
 
   async addRolePermissions(role: string, permissions: Permission[], guardName: string): Promise<void> {
+    this.assertName(role, guardName, 'role');
+    assertPermissionStrings(permissions, 'permission');
     if (!permissions.length) return;
     await this.runInTransaction(async (session) => {
       const roleDocument = await this.findRole(role, guardName, session);
@@ -144,6 +167,8 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async removeRolePermissions(role: string, permission: Permission, guardName: string): Promise<void> {
+    this.assertName(role, guardName, 'role');
+    assertPermissionString(permission, 'permission');
     const roleDocument = await this.findRole(role, guardName);
     const permissionDocument = await this.permissions.findOne({ name: permission, guardName }).lean();
     if (!permissionDocument) return;
@@ -151,6 +176,8 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async addUserRoles(userId: PermissionSubjectId, roles: string[], guardName: string, tenantId?: string): Promise<void> {
+    this.assertSubject(userId, guardName, tenantId);
+    assertPermissionStrings(roles, 'role');
     if (!roles.length) return;
     const subjectId = String(userId);
     await this.runInTransaction(async (session) => {
@@ -165,6 +192,8 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async removeUserRoles(userId: PermissionSubjectId, role: string, guardName: string, tenantId?: string): Promise<void> {
+    this.assertSubject(userId, guardName, tenantId);
+    assertPermissionString(role, 'role');
     const roleDocument = await this.roles.findOne({ name: role, guardName }).lean();
     const subjectId = String(userId);
     if (!roleDocument) return;
@@ -172,6 +201,8 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async addUserPermissions(userId: PermissionSubjectId, permissions: Permission[], guardName: string, tenantId?: string): Promise<void> {
+    this.assertSubject(userId, guardName, tenantId);
+    assertPermissionStrings(permissions, 'permission');
     if (!permissions.length) return;
     const subjectId = String(userId);
     await this.runInTransaction(async (session) => {
@@ -186,6 +217,8 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async removeUserPermissions(userId: PermissionSubjectId, permission: Permission, guardName: string, tenantId?: string): Promise<void> {
+    this.assertSubject(userId, guardName, tenantId);
+    assertPermissionString(permission, 'permission');
     const permissionDocument = await this.permissions.findOne({ name: permission, guardName }).lean();
     const subjectId = String(userId);
     if (!permissionDocument) return;
@@ -193,13 +226,31 @@ export class MongoosePermissionRepository implements PermissionRepository {
   }
 
   async listPermissions(guardName: string): Promise<Permission[]> {
+    assertPermissionString(guardName, 'guardName');
     const docs = await this.permissions.find({ guardName }, { name: 1 }).lean();
     return docs.map((doc) => doc.name);
   }
 
   async listRoles(guardName: string): Promise<string[]> {
+    assertPermissionString(guardName, 'guardName');
     const docs = await this.roles.find({ guardName }, { name: 1 }).lean();
     return docs.map((doc) => doc.name);
+  }
+
+  /**
+   * Rejects filter values MongoDB would read as query operators. `{ $ne: null }` in `name` turns
+   * an existence check into "any document"; in `tenantId` it turns a tenant-scoped read into a
+   * cross-tenant read.
+   */
+  private assertName(name: unknown, guardName: unknown, label: string): void {
+    assertPermissionString(name, label);
+    assertPermissionString(guardName, 'guardName');
+  }
+
+  private assertSubject(userId: unknown, guardName: unknown, tenantId: unknown): void {
+    assertSubjectId(userId);
+    assertPermissionString(guardName, 'guardName');
+    assertOptionalTenantId(tenantId);
   }
 
   /** Filter matching one tenant's assignments; `undefined` matches only tenant-less documents. */

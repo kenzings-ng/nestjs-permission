@@ -1,5 +1,11 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PERMISSION_OPTIONS, PERMISSION_REPOSITORY } from './constants';
+import {
+  assertOptionalTenantId,
+  assertPermissionString,
+  assertPermissionStrings,
+  assertSubjectId,
+} from './permission-input';
 import { matchesPermission } from './permission-matcher';
 import { NestPermissionModuleOptions, Permission, PermissionRepository, PermissionSubjectId } from './types';
 
@@ -12,7 +18,7 @@ export class PermissionService {
     @Inject(PERMISSION_REPOSITORY) private readonly repository: PermissionRepository,
     @Inject(PERMISSION_OPTIONS) private readonly options: NestPermissionModuleOptions,
   ) {
-    this.guardName = options.guardName ?? 'default';
+    this.guardName = assertPermissionString(options.guardName ?? 'default', 'guardName');
   }
 
   /**
@@ -23,7 +29,7 @@ export class PermissionService {
    */
   forTenant(tenantId: string | undefined): PermissionService {
     const scoped = new PermissionService(this.repository, this.options);
-    scoped.tenantId = tenantId;
+    scoped.tenantId = assertOptionalTenantId(tenantId);
     return scoped;
   }
 
@@ -33,6 +39,7 @@ export class PermissionService {
    * Throws ConflictException if a permission with this name already exists for the guard.
    */
   async createPermission(name: Permission): Promise<void> {
+    assertPermissionString(name, 'permission');
     if (await this.repository.permissionExists(name, this.guardName)) {
       throw new ConflictException(`Permission '${name}' already exists for guard '${this.guardName}'.`);
     }
@@ -43,7 +50,8 @@ export class PermissionService {
    * Removes a permission definition and cascades the deletion to any role or user assignment
    * that references it.
    */
-  deletePermission(name: Permission): Promise<void> {
+  async deletePermission(name: Permission): Promise<void> {
+    assertPermissionString(name, 'permission');
     return this.repository.deletePermission(name, this.guardName);
   }
 
@@ -53,6 +61,7 @@ export class PermissionService {
    * Throws ConflictException if a role with this name already exists for the guard.
    */
   async createRole(name: string): Promise<void> {
+    assertPermissionString(name, 'role');
     if (await this.repository.roleExists(name, this.guardName)) {
       throw new ConflictException(`Role '${name}' already exists for guard '${this.guardName}'.`);
     }
@@ -63,7 +72,8 @@ export class PermissionService {
    * Removes a role definition and cascades the deletion to any user-role assignment that
    * references it.
    */
-  deleteRole(name: string): Promise<void> {
+  async deleteRole(name: string): Promise<void> {
+    assertPermissionString(name, 'role');
     return this.repository.deleteRole(name, this.guardName);
   }
 
@@ -93,6 +103,8 @@ export class PermissionService {
    * back to a read-modify-write cycle.
    */
   async givePermissionToRole(role: string, ...permissions: Permission[]): Promise<void> {
+    assertPermissionString(role, 'role');
+    assertPermissionStrings(permissions, 'permission');
     await this.assertRole(role);
     await this.assertPermissions(permissions);
     if (this.repository.addRolePermissions) {
@@ -108,6 +120,8 @@ export class PermissionService {
    * already exist. Permissions not listed are revoked.
    */
   async syncPermissions(role: string, permissions: Permission[]): Promise<void> {
+    assertPermissionString(role, 'role');
+    assertPermissionStrings(permissions, 'permission');
     await this.assertRole(role);
     await this.assertPermissions(permissions);
     await this.repository.setRolePermissions(role, this.unique(permissions), this.guardName);
@@ -118,6 +132,8 @@ export class PermissionService {
    * the repository provides it; otherwise falls back to a read-modify-write cycle.
    */
   async revokePermissionFromRole(role: string, permission: Permission): Promise<void> {
+    assertPermissionString(role, 'role');
+    assertPermissionString(permission, 'permission');
     await this.assertRole(role);
     if (this.repository.removeRolePermissions) {
       await this.repository.removeRolePermissions(role, permission, this.guardName);
@@ -128,7 +144,8 @@ export class PermissionService {
   }
 
   /** Returns all permissions currently granted to a role. */
-  getRolePermissions(role: string): Promise<Permission[]> {
+  async getRolePermissions(role: string): Promise<Permission[]> {
+    assertPermissionString(role, 'role');
     return this.repository.getRolePermissions(role, this.guardName);
   }
 
@@ -138,6 +155,8 @@ export class PermissionService {
    * read-modify-write cycle. Tenant-scoped when called on a scoped service.
    */
   async assignRole(userId: PermissionSubjectId, ...roles: string[]): Promise<void> {
+    assertSubjectId(userId);
+    assertPermissionStrings(roles, 'role');
     await this.assertRoles(roles);
     if (this.repository.addUserRoles) {
       await this.repository.addUserRoles(userId, roles, this.guardName, this.tenantId);
@@ -152,6 +171,8 @@ export class PermissionService {
    * listed are removed. Tenant-scoped when called on a scoped service.
    */
   async syncRoles(userId: PermissionSubjectId, roles: string[]): Promise<void> {
+    assertSubjectId(userId);
+    assertPermissionStrings(roles, 'role');
     await this.assertRoles(roles);
     await this.repository.setUserRoles(userId, this.unique(roles), this.guardName, this.tenantId);
   }
@@ -162,6 +183,8 @@ export class PermissionService {
    * when called on a scoped service.
    */
   async removeRole(userId: PermissionSubjectId, role: string): Promise<void> {
+    assertSubjectId(userId);
+    assertPermissionString(role, 'role');
     if (this.repository.removeUserRoles) {
       await this.repository.removeUserRoles(userId, role, this.guardName, this.tenantId);
       return;
@@ -171,7 +194,8 @@ export class PermissionService {
   }
 
   /** Returns all roles currently assigned to the user (in the current tenant scope). */
-  getRoles(userId: PermissionSubjectId): Promise<string[]> {
+  async getRoles(userId: PermissionSubjectId): Promise<string[]> {
+    assertSubjectId(userId);
     return this.repository.getUserRoles(userId, this.guardName, this.tenantId);
   }
 
@@ -182,6 +206,8 @@ export class PermissionService {
    * scoped service.
    */
   async givePermissionTo(userId: PermissionSubjectId, ...permissions: Permission[]): Promise<void> {
+    assertSubjectId(userId);
+    assertPermissionStrings(permissions, 'permission');
     await this.assertPermissions(permissions);
     if (this.repository.addUserPermissions) {
       await this.repository.addUserPermissions(userId, permissions, this.guardName, this.tenantId);
@@ -197,6 +223,8 @@ export class PermissionService {
    * Tenant-scoped when called on a scoped service.
    */
   async syncDirectPermissions(userId: PermissionSubjectId, permissions: Permission[]): Promise<void> {
+    assertSubjectId(userId);
+    assertPermissionStrings(permissions, 'permission');
     await this.assertPermissions(permissions);
     await this.repository.setUserPermissions(userId, this.unique(permissions), this.guardName, this.tenantId);
   }
@@ -207,6 +235,8 @@ export class PermissionService {
    * Tenant-scoped when called on a scoped service.
    */
   async revokePermissionTo(userId: PermissionSubjectId, permission: Permission): Promise<void> {
+    assertSubjectId(userId);
+    assertPermissionString(permission, 'permission');
     if (this.repository.removeUserPermissions) {
       await this.repository.removeUserPermissions(userId, permission, this.guardName, this.tenantId);
       return;
@@ -220,7 +250,8 @@ export class PermissionService {
    * Useful when distinguishing between direct and role-inherited permissions, for example in
    * admin UIs or audit logs. Tenant-scoped when called on a scoped service.
    */
-  getDirectPermissions(userId: PermissionSubjectId): Promise<Permission[]> {
+  async getDirectPermissions(userId: PermissionSubjectId): Promise<Permission[]> {
+    assertSubjectId(userId);
     return this.repository.getUserPermissions(userId, this.guardName, this.tenantId);
   }
 
@@ -231,6 +262,7 @@ export class PermissionService {
    * service.
    */
   async getAllPermissions(userId: PermissionSubjectId): Promise<Permission[]> {
+    assertSubjectId(userId);
     const [direct, roles] = await Promise.all([
       this.repository.getUserPermissions(userId, this.guardName, this.tenantId),
       this.repository.getUserRoles(userId, this.guardName, this.tenantId),
@@ -284,6 +316,7 @@ export class PermissionService {
   }
 
   private async assertRole(role: string): Promise<void> {
+    assertPermissionString(role, 'role');
     if (!(await this.repository.roleExists(role, this.guardName))) {
       throw new NotFoundException(`Role '${role}' does not exist for guard '${this.guardName}'.`);
     }
@@ -296,6 +329,7 @@ export class PermissionService {
   private async assertPermissions(permissions: Permission[]): Promise<void> {
     await Promise.all(
       permissions.map(async (permission) => {
+        assertPermissionString(permission, 'permission');
         if (!(await this.repository.permissionExists(permission, this.guardName))) {
           throw new NotFoundException(`Permission '${permission}' does not exist for guard '${this.guardName}'.`);
         }

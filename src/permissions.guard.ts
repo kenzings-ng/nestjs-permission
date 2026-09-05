@@ -20,7 +20,10 @@ export class PermissionsGuard implements CanActivate {
     if (!required) return true;
     assertNonEmptyPermissions(required.permissions);
 
-    const request = context.switchToHttp().getRequest<Record<string, unknown>>();
+    // Non-HTTP execution contexts (ws, rpc, some GraphQL drivers) have no HTTP request. Deny
+    // instead of dereferencing undefined and surfacing a 500 in place of an authorization result.
+    const request = context.switchToHttp().getRequest<Record<string, unknown> | undefined>();
+    if (!request) return false;
     const user = request[this.options.userProperty ?? 'user'] as PermissionUser | undefined;
     return this.evaluator.hasPermissions(user, required);
   }

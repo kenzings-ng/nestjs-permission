@@ -2,6 +2,7 @@ export * from './constants';
 export * from './default-permission.evaluator';
 export * from './in-memory-permission.repository';
 export * from './nest-permission.module';
+export * from './permission-input';
 export * from './permission-matcher';
 export * from './permission.service';
 export * from './permissions.decorator';

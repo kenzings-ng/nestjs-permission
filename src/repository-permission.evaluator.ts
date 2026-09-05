@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PERMISSION_OPTIONS } from './constants';
+import { isPermissionString, isSubjectId, toPermissionSet } from './permission-input';
 import { matchesPermission } from './permission-matcher';
 import { PermissionService } from './permission.service';
 import { NestPermissionModuleOptions, PermissionEvaluator, PermissionUser, RequiredPermissions } from './types';
@@ -14,10 +15,17 @@ export class RepositoryPermissionEvaluator implements PermissionEvaluator {
   async hasPermissions(user: PermissionUser | undefined, required: RequiredPermissions): Promise<boolean> {
     if (!user) return false;
     if (!required.permissions.length) return false;
-    const service = user.tenantId === undefined ? this.permissions : this.permissions.forTenant(user.tenantId);
+
+    // `tenantId` and `id` come off the request user object and are used as persistence filter
+    // values. Deny rather than throw so a malformed claim can never widen the tenant scope.
+    const tenantId = user.tenantId;
+    if (tenantId !== undefined && !isPermissionString(tenantId)) return false;
+    if (user.id !== undefined && !isSubjectId(user.id)) return false;
+
+    const service = tenantId === undefined ? this.permissions : this.permissions.forTenant(tenantId);
     const granted = user.id === undefined
-      ? new Set(user.permissions ?? [])
-      : new Set(await service.getAllPermissions(user.id));
+      ? toPermissionSet(user.permissions)
+      : toPermissionSet(await service.getAllPermissions(user.id));
     const has = (permission: string) =>
       [...granted].some((value) => matchesPermission(value, permission, this.options.wildcardPermissions !== false));
     return required.mode === 'all'

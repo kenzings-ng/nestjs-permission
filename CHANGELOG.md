@@ -4,6 +4,59 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-09-04
+
+### Security
+
+- **NoSQL operator injection / cross-tenant privilege escalation.** Permission names, role names,
+  guard names, tenant ids and subject ids reaching a repository filter are now required to be
+  primitive strings (subject ids: string or finite number). MongoDB treats a plain object in a
+  filter value as a query operator, so an untrusted `{ "$ne": null }` previously widened a filter
+  instead of narrowing it: `permissionExists` matched any document (defeating the existence check
+  in `givePermissionTo` / `syncPermissions`), and an operator object in `tenantId` — which
+  `RepositoryPermissionEvaluator` reads straight off `request.user` — returned another tenant's
+  assignments. Validation is applied in `PermissionService`, `MongoosePermissionRepository` and
+  `InMemoryPermissionRepository`, so it holds for custom `PermissionRepository` adapters too.
+- **`RepositoryPermissionEvaluator` fails closed on a malformed user object.** A non-string
+  `user.tenantId` or a non-`string | number` `user.id` now denies the request without querying,
+  rather than being passed through to the repository.
+- **`matchesPermission` never matches a non-string operand.** A non-string entry in
+  `user.permissions` previously threw a `TypeError` (surfacing a 500 in place of an authorization
+  decision); it is now ignored.
+- **`user.permissions` given as a bare string is no longer iterated character by character.**
+  `new Set('admin')` yielded `{a, d, m, i, n}`, which could satisfy a single-character permission.
+  A non-array iterable is still accepted; non-string entries are dropped.
+- **`PermissionsGuard` denies instead of throwing in non-HTTP execution contexts** where
+  `switchToHttp().getRequest()` returns `undefined` (ws/rpc and some GraphQL drivers).
+
+### Added
+
+- `permission-input` module, exported from the package root: `isPermissionString`, `isSubjectId`,
+  `assertPermissionString`, `assertPermissionStrings`, `assertSubjectId`,
+  `assertOptionalTenantId` and `toPermissionSet`. Use these to validate untrusted values in your
+  own `PermissionRepository` adapter or before calling `forTenant()`.
+
+### Changed
+
+- `PermissionService.deletePermission`, `deleteRole`, `getRolePermissions`, `getRoles` and
+  `getDirectPermissions` are now declared `async`, so input validation surfaces as a rejected
+  promise rather than a synchronous throw. The `Promise` return type is unchanged.
+
+### Upgrading
+
+Existing code that passes strings keeps working unchanged. Two behaviours differ:
+
+- Calls that previously passed a non-string name, role, guard name, tenant id or subject id now
+  throw `BadRequestException` instead of silently querying. If a controller forwards raw request
+  input into `PermissionService`, validate it (or add a DTO) rather than relying on the old
+  pass-through.
+- `PermissionsGuard` now denies where it previously threw. A route that returned 500 for a
+  malformed user object will return 403.
+
+Applications that build `request.user` from JWT claims and use multi-tenancy should still validate
+`tenantId` at the authentication boundary; this release makes the library fail closed, but the
+claim is best rejected before it reaches authorization.
+
 ## [0.3.3]
 
 ### Fixed

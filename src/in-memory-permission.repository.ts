@@ -1,4 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import {
+  assertOptionalTenantId,
+  assertPermissionString,
+  assertPermissionStrings,
+  assertSubjectId,
+} from './permission-input';
 import { Permission, PermissionRepository, PermissionSubjectId } from './types';
 
 @Injectable()
@@ -51,6 +57,7 @@ export class InMemoryPermissionRepository implements PermissionRepository {
   }
 
   async setRolePermissions(role: string, permissions: Permission[], guardName: string): Promise<void> {
+    assertPermissionStrings(permissions, 'permission');
     this.rolePermissions.set(this.key(guardName, role), [...new Set(permissions)]);
   }
 
@@ -59,6 +66,7 @@ export class InMemoryPermissionRepository implements PermissionRepository {
   }
 
   async setUserRoles(userId: PermissionSubjectId, roles: string[], guardName: string, tenantId?: string): Promise<void> {
+    assertPermissionStrings(roles, 'role');
     this.userRoles.set(this.userKey(guardName, userId, tenantId), [...new Set(roles)]);
   }
 
@@ -67,6 +75,7 @@ export class InMemoryPermissionRepository implements PermissionRepository {
   }
 
   async setUserPermissions(userId: PermissionSubjectId, permissions: Permission[], guardName: string, tenantId?: string): Promise<void> {
+    assertPermissionStrings(permissions, 'permission');
     this.userPermissions.set(this.userKey(guardName, userId, tenantId), [...new Set(permissions)]);
   }
 
@@ -75,6 +84,7 @@ export class InMemoryPermissionRepository implements PermissionRepository {
   }
 
   async listPermissions(guardName: string): Promise<Permission[]> {
+    assertPermissionString(guardName, 'guardName');
     const result: Permission[] = [];
     for (const key of this.permissions) {
       const [g, name] = JSON.parse(key) as [string, string];
@@ -84,6 +94,7 @@ export class InMemoryPermissionRepository implements PermissionRepository {
   }
 
   async listRoles(guardName: string): Promise<string[]> {
+    assertPermissionString(guardName, 'guardName');
     const result: string[] = [];
     for (const key of this.roles) {
       const [g, name] = JSON.parse(key) as [string, string];
@@ -92,11 +103,21 @@ export class InMemoryPermissionRepository implements PermissionRepository {
     return result;
   }
 
+  /**
+   * Validated here as well as in PermissionService so both adapters reject the same inputs. A
+   * non-string name would otherwise key an entry that no later lookup can reproduce, and
+   * `String({})` collapses every object-valued subject id onto `'[object Object]'`.
+   */
   private key(guardName: string, name: string): string {
+    assertPermissionString(guardName, 'guardName');
+    assertPermissionString(name, 'name');
     return JSON.stringify([guardName, name]);
   }
 
   private userKey(guardName: string, userId: PermissionSubjectId, tenantId?: string): string {
+    assertPermissionString(guardName, 'guardName');
+    assertSubjectId(userId);
+    assertOptionalTenantId(tenantId);
     const tenantScope = tenantId === undefined ? ['global'] : ['tenant', tenantId];
     return JSON.stringify([guardName, tenantScope, String(userId)]);
   }

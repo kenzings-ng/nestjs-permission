@@ -1,5 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { PERMISSION_OPTIONS } from './constants';
+import { toPermissionSet } from './permission-input';
 import { matchesPermission } from './permission-matcher';
 import { NestPermissionModuleOptions, PermissionEvaluator, PermissionUser, RequiredPermissions } from './types';
 
@@ -19,7 +20,10 @@ export class DefaultPermissionEvaluator implements PermissionEvaluator {
   hasPermissions(user: PermissionUser | undefined, required: RequiredPermissions): boolean {
     if (!user?.permissions) return false;
     if (!required.permissions.length) return false;
-    const granted = new Set(user.permissions);
+    // The user object is attacker-adjacent (JWT claims, session payloads): only string entries
+    // count as grants, and a malformed collection yields an empty set rather than throwing.
+    const granted = toPermissionSet(user.permissions);
+    if (!granted.size) return false;
     const has = (permission: string) =>
       [...granted].some((value) => matchesPermission(value, permission, this.options.wildcardPermissions !== false));
     return required.mode === 'all'
